@@ -1,0 +1,33 @@
+{
+  "compilerOptions": {
+    "target": "es2022",
+    "module": "nodenext",
+    "allowJs": true,
+    "removeComments": true,
+    "resolveJsonModule": true,
+    "typeRoots": [
+      "./node_modules/@types",
+      "./src/types"
+    ],
+    "sourceMap": true,
+    "outDir": "./dist",
+    "strict": true,
+    "lib": [
+      "DOM",
+      "ES2023"
+    ],
+    "forceConsistentCasingInFileNames": true,
+    "esModuleInterop": true,
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "moduleResolution": "NodeNext",
+    "allowSyntheticDefaultImports": true
+  },
+  "include": [
+    "src/**/*"
+, "src/swappers/jupiter/index.ts"  ],
+  "exclude": [
+    "node_modules",
+    "dist"
+  ]
+}
