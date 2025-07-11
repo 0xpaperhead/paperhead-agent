@@ -3,7 +3,10 @@ import 'dotenv/config'
 import { AgenticSystem } from './agent/agenticSystem.js';
 
 console.log('Application Environment:', process.env.NODE_ENV + '\n\n');
-console.log('🎭 Starting Paperhead Agentic Trading System...\n');
+console.log('🎭 Starting Paperhead Agentic Trading System...');
+console.log('💰 24-Hour Automatic Portfolio Rebalancing System');
+console.log('🎯 10-Token Diversified Portfolio Strategy');
+console.log('🔄 Intelligent Buy/Sell Based on Market Analysis\n');
 
 // Initialize and start the agentic system
 async function startAgenticSystem() {
