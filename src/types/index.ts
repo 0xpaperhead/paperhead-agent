@@ -241,4 +241,101 @@ export interface PortfolioAnalysis {
     warnings: string[];
     strengths: string[];
   };
+}
+
+// Trading Configuration Types
+export interface TradingConfiguration {
+  enableAutomaticTrading: boolean;
+  maxPositionSizeSOL: number; // Maximum SOL amount per trade
+  minTradeAmountSOL: number; // Minimum SOL amount per trade
+  slippageTolerance: number; // Percentage (e.g., 0.5 for 0.5%)
+  minConfidenceThreshold: number; // Minimum confidence score to execute trade
+  maxRiskScore: number; // Maximum risk score to allow
+  delayBetweenTradesMs: number; // Delay between trades in milliseconds
+  portfolioUpdateIntervalMs: number; // How often to automatically rebalance portfolio
+  computeUnitPrice: number; // Compute unit price for transactions
+  emergencyStopEnabled: boolean; // Enable emergency stop functionality
+  maxDailyLossPercentage: number; // Maximum daily loss percentage
+  rebalanceThreshold: number; // Threshold for portfolio rebalancing
+}
+
+// Trading Execution Types
+export interface TradeExecution {
+  token: PortfolioToken;
+  action: 'buy' | 'sell';
+  amountSOL: number;
+  targetAllocation: number;
+  currentAllocation: number;
+  priority: 'high' | 'medium' | 'low';
+}
+
+export interface TradeResult {
+  token: PortfolioToken;
+  success: boolean;
+  error?: string;
+  requestedAmountSOL: number;
+  actualAmountSOL: number;
+  tokensReceived: number;
+  transactionHash: string | null;
+  executedAt: number;
+  gasUsed?: number;
+  effectivePrice?: number;
+}
+
+// Wallet Management Types
+export interface WalletBalance {
+  tokenMint: string;
+  balance: number;
+  valueSOL: number;
+  valueUSD: number;
+  lastUpdated: number;
+}
+
+export interface PortfolioBalance {
+  totalValueSOL: number;
+  totalValueUSD: number;
+  tokenBalances: WalletBalance[];
+  lastUpdated: number;
+  unrealizedPnL: number;
+  realizedPnL: number;
+}
+
+// Trading History Types
+export interface TradeHistory {
+  id: string;
+  portfolioId: string;
+  trades: TradeResult[];
+  totalInvestedSOL: number;
+  totalTokensReceived: number;
+  successRate: number;
+  averageSlippage: number;
+  executedAt: number;
+  executionTimeMs: number;
+}
+
+// Risk Management Types
+export interface RiskMetrics {
+  portfolioRiskScore: number;
+  concentrationRisk: number;
+  liquidityRisk: number;
+  volatilityRisk: number;
+  correlationRisk: number;
+  maxDrawdown: number;
+  sharpeRatio: number;
+  dailyVaR: number; // Value at Risk
+}
+
+// Performance Tracking Types
+export interface PerformanceMetrics {
+  totalReturn: number;
+  dailyReturn: number;
+  weeklyReturn: number;
+  monthlyReturn: number;
+  annualizedReturn: number;
+  volatility: number;
+  maxDrawdown: number;
+  winRate: number;
+  profitFactor: number;
+  averageWin: number;
+  averageLoss: number;
 } 
