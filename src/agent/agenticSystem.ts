@@ -5,9 +5,10 @@ import { generateText } from "ai";
 import { getOnChainTools } from "@goat-sdk/adapter-vercel-ai";
 import { jupiter } from "@goat-sdk/plugin-jupiter";
 import { orca } from "@goat-sdk/plugin-orca";
-import { solana } from "@goat-sdk/wallet-solana";
+import { splToken } from "@goat-sdk/plugin-spl-token";
+import { sendSOL, solana } from "@goat-sdk/wallet-solana";
 
-import { Connection, Keypair } from "@solana/web3.js";
+import { Connection, Keypair, PublicKey } from "@solana/web3.js";
 import base58 from "bs58";
 
 import { NewsService } from "../services/newsService.js";
@@ -16,6 +17,7 @@ import { TrendAnalyzer } from "../services/trendAnalyzer.js";
 import { TrendingTokensService } from "../services/trendingTokensService.js";
 import { PortfolioService } from "../services/portfolioService.js";
 import { AgentState, AgentDecision, PortfolioAnalysis } from "../types/index.js";
+import { getTokenBalance, getAllTokenBalances } from "../utils/tokenUtils.js";
 
 export class AgenticSystem {
   private newsService: NewsService;
@@ -36,14 +38,14 @@ export class AgenticSystem {
     lastDecision: undefined
   };
 
-  // Portfolio state
+  // Portfolio state - now automatically rebalanced every 24 hours
   private currentPortfolio: PortfolioAnalysis | null = null;
-  private portfolioUpdateInterval = 2 * 60 * 60 * 1000; // 2 hours for portfolio updates
+  private portfolioUpdateInterval = 24 * 60 * 60 * 1000; // 24 hours for portfolio updates
   private lastPortfolioUpdate = 0;
 
+
   // Configuration
-  private readonly updateInterval = 60 * 60 * 1000; // 1 hour
-  private readonly quickUpdateInterval = 15 * 60 * 1000; // 15 minutes for high-priority topics
+  private readonly updateInterval = 24 * 60 * 60 * 1000; // 24 hours
   private readonly maxTopicsPerCycle = 15; // Limit to avoid API rate limits
 
   constructor() {
@@ -52,6 +54,7 @@ export class AgenticSystem {
     this.trendAnalyzer = new TrendAnalyzer();
     this.trendingTokensService = new TrendingTokensService();
     this.portfolioService = new PortfolioService(this.trendingTokensService, this.trendAnalyzer);
+    
   }
 
   /**
@@ -73,6 +76,8 @@ export class AgenticSystem {
           connection: this.connection,
         }),
         plugins: [
+          sendSOL(),
+          splToken(),
           jupiter(),
           orca()
         ],
@@ -103,9 +108,6 @@ export class AgenticSystem {
 
     // Start the main loop
     this.runMainLoop();
-
-    // Start the quick update loop for high-priority topics
-    this.runQuickUpdateLoop();
   }
 
   /**
@@ -117,21 +119,21 @@ export class AgenticSystem {
   }
 
   /**
-   * Main system loop - runs every hour
+   * Main system loop - runs every 24 hours
    */
   private async runMainLoop(): Promise<void> {
     while (this.state.isRunning) {
       try {
         console.log("\n" + "=".repeat(60));
-        console.log("🔄 Starting Main Analysis Cycle");
+        console.log("🔄 Starting 24-Hour Analysis & Rebalancing Cycle");
         console.log("=".repeat(60));
 
         await this.performFullAnalysis();
-        await this.makeAgentDecision();
+        await this.performPortfolioRebalancing();
 
         this.state.lastUpdate = Date.now();
 
-        console.log("✅ Main cycle completed. Waiting for next cycle...\n");
+        console.log("✅ 24-hour cycle completed. Waiting for next cycle...\n");
         await this.sleep(this.updateInterval);
 
       } catch (error) {
@@ -141,39 +143,6 @@ export class AgenticSystem {
     }
   }
 
-  /**
-   * Quick update loop - runs every 15 minutes for high-priority topics
-   */
-  private async runQuickUpdateLoop(): Promise<void> {
-    // Wait a bit before starting to avoid conflicts
-    await this.sleep(5 * 60 * 1000);
-
-    while (this.state.isRunning) {
-      try {
-        console.log("\n📊 Quick Update: Checking high-priority topics...");
-        
-        const highPriorityTopics = this.topicGenerator.getHighPriorityTopics();
-        const quickScores = await this.newsService.batchCalculateTopicScores(
-          highPriorityTopics.slice(0, 5) // Limit to 5 topics for quick updates
-        );
-
-        this.trendAnalyzer.addTopicScores(quickScores);
-        
-        // Check for significant changes that might warrant immediate action
-        const trends = this.trendAnalyzer.getTopTrendingTopics(3);
-        if (trends.some(t => Math.abs(t.trendStrength) > 50)) {
-          console.log("🚨 Significant trend detected! Consider immediate analysis...");
-          // Could trigger an immediate full analysis here if needed
-        }
-
-        await this.sleep(this.quickUpdateInterval);
-
-      } catch (error) {
-        console.error("❌ Error in quick update loop:", error);
-        await this.sleep(this.quickUpdateInterval);
-      }
-    }
-  }
 
   /**
    * Perform initial data collection
@@ -195,7 +164,7 @@ export class AgenticSystem {
     this.trendAnalyzer.addTopicScores(topicScores);
     
     // Add sentiment data to analyzer
-    sentimentData.forEach((sentiment, interval) => {
+    sentimentData.forEach((sentiment) => {
       if (sentiment) {
         this.trendAnalyzer.addSentimentData(sentiment);
       }
@@ -206,6 +175,12 @@ export class AgenticSystem {
       this.trendAnalyzer.addFearGreedAnalysis(fearGreedAnalysis);
     }
 
+    // Generate initial 10-token portfolio
+    console.log("🎯 Generating initial 10-token portfolio...");
+    const initialRiskProfile = this.determineRiskProfile();
+    this.currentPortfolio = await this.portfolioService.generateEqualAllocationPortfolio(10, initialRiskProfile);
+    this.lastPortfolioUpdate = Date.now();
+    
     console.log("✅ Initial data collection completed");
   }
 
@@ -249,11 +224,7 @@ export class AgenticSystem {
     const tokenAnalysis = await this.trendingTokensService.getMarketAnalysis();
     console.log(`🎯 Token Market Sentiment: ${tokenAnalysis.marketSentiment.toUpperCase()}`);
 
-    // 7. Generate/Update Portfolio if needed
-    const shouldUpdatePortfolio = this.shouldUpdatePortfolio();
-    if (shouldUpdatePortfolio) {
-      await this.generatePortfolio();
-    }
+    // 7. Portfolio rebalancing is now handled separately in performPortfolioRebalancing()
 
     // 8. Extract new topics from headlines using AI agent
     const allHeadlines = topicScores.flatMap(ts => ts.articles.map(a => a.title));
@@ -470,7 +441,7 @@ export class AgenticSystem {
   /**
    * Generate portfolio now with specified parameters (public API)
    */
-  public async generatePortfolioNow(riskProfile: 'conservative' | 'moderate' | 'aggressive', tokenCount: number = 5): Promise<PortfolioAnalysis> {
+  public async generatePortfolioNow(riskProfile: 'conservative' | 'moderate' | 'aggressive', tokenCount: number = 10): Promise<PortfolioAnalysis> {
     console.log(`\n🎯 Manually generating portfolio (Risk: ${riskProfile}, Tokens: ${tokenCount})`);
     
     const portfolioAnalysis = await this.portfolioService.generateEqualAllocationPortfolio(tokenCount, riskProfile);
@@ -482,6 +453,14 @@ export class AgenticSystem {
     this.printPortfolioSummary(portfolioAnalysis);
 
     return portfolioAnalysis;
+  }
+
+  /**
+   * Trigger automatic portfolio rebalancing immediately (public API)
+   */
+  public async triggerRebalancingNow(): Promise<void> {
+    console.log('\n🎯 Triggering immediate portfolio rebalancing...');
+    await this.performPortfolioRebalancing();
   }
 
   /**
@@ -656,14 +635,24 @@ Based on this comprehensive analysis, make a trading decision. Consider:
 3. Risk management (never risk more than 10% of portfolio)
 4. Focus on Solana ecosystem tokens when possible
 
+IMPORTANT: Always use token CONTRACT ADDRESSES (mint addresses) instead of symbols when making trading decisions. Symbols can be duplicated or fake, but contract addresses are unique.
+
+CONTRACT ADDRESS REQUIREMENTS:
+- Must be valid base58-encoded Solana public keys (44 characters)
+- Example valid address: DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263
+- NO made-up addresses, NO symbols, NO invalid characters
+- If you don't have a valid contract address, choose "hold"
+
 Respond with a JSON object containing:
 - action: "buy", "sell", or "hold"
-- token: token symbol if buying/selling (or null for hold)
-- amount: percentage of SOL balance to use (1-10 for buy, or percentage to sell)
+- token: VALID token CONTRACT ADDRESS (mint address) if buying/selling (or null for hold) - NOT the symbol
+- amount: INTEGER percentage of SOL balance to use (1-10 for buy, or percentage to sell) - NO DECIMALS
 - confidence: confidence level 0-100
-- reasoning: detailed explanation of your decision
+- reasoning: detailed explanation of your decision including the token symbol and contract address
 
-Be conservative and only make high-confidence trades. If market conditions are unclear, choose "hold".`;
+Be conservative and only make high-confidence trades. If market conditions are unclear, choose "hold".
+If you don't have access to specific valid contract addresses, choose "hold" rather than guessing.
+CRITICAL: Contract addresses will be validated - invalid addresses will cause trade cancellation.`;
 
       const result = await generateText({
         model: openai("gpt-4o-mini"),
@@ -699,9 +688,10 @@ Be conservative and only make high-confidence trades. If market conditions are u
    */
   private async executeDecision(decision: AgentDecision): Promise<void> {
     try {
+      const safeAmount = Math.floor(decision.amount ?? 0);
       console.log(`\n🎯 Executing Decision: ${decision.action.toUpperCase()}`);
-      console.log(`💰 Token: ${decision.token || 'N/A'}`);
-      console.log(`📊 Amount: ${decision.amount}%`);
+      console.log(`💰 Token Contract: ${decision.token || 'N/A'}`);
+      console.log(`📊 Amount: ${safeAmount}% (integer only)`);
       console.log(`🎯 Confidence: ${decision.confidence}%`);
       console.log(`💭 Reasoning: ${decision.reasoning}\n`);
 
@@ -710,35 +700,118 @@ Be conservative and only make high-confidence trades. If market conditions are u
         return;
       }
 
+      // Validate mint address before proceeding
+      if (decision.token && !this.isValidSolanaAddress(decision.token)) {
+        console.log(`❌ INVALID MINT ADDRESS: ${decision.token}`);
+        console.log(`💡 Mint addresses must be valid base58-encoded Solana public keys`);
+        console.log(`🔍 Example valid address: DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263`);
+        console.log(`⏸️ Trade cancelled due to invalid address\n`);
+        return;
+      }
+
       // Create trading prompt for the AI agent
-      const tradingPrompt = `Based on my analysis, I want to ${decision.action} ${decision.token || 'tokens'}.
+      const tradingPrompt = `Based on my analysis, I want to ${decision.action} tokens with the EXACT contract address below.
 
 Analysis Summary: ${decision.reasoning}
 
-Please:
-1. Check my current SOL balance
-2. ${decision.action === 'buy' ? 
-    `Calculate ${decision.amount}% of my SOL balance and buy ${decision.token} tokens with that amount` :
-    `Sell ${decision.amount}% of my ${decision.token} tokens`}
-3. Execute the trade if the conditions look good
-4. Provide a summary of the transaction
+MANDATORY CONTRACT ADDRESS: ${decision.token}
+TOKEN ACTION: ${decision.action.toUpperCase()}
+PERCENTAGE: ${safeAmount}%
 
-Be careful with the trade and explain each step.`;
+CRITICAL REQUIREMENTS: 
+- Use EXACTLY this contract address for ALL operations: ${decision.token}
+- NEVER use symbols, NEVER modify this address, NEVER truncate it
+- ALWAYS use INTEGER amounts in lamports/token units - NEVER decimal numbers like 82719484.75
+- ROUND DOWN all calculations to integers using Math.floor()
+- Jupiter API amount parameter MUST be an integer (no decimals allowed)
+- For ANY token balance checks, use EXACTLY: ${decision.token}
+- For ANY trading operations, use EXACTLY: ${decision.token}
+
+STEP-BY-STEP INSTRUCTIONS:
+1. Check my current SOL balance in lamports
+2. ${decision.action === 'buy' ? 
+    `Calculate exactly ${safeAmount}% of my SOL balance: (balance_in_lamports * ${safeAmount} / 100) and use that INTEGER amount to buy tokens with contract address ${decision.token}` :
+    `Check my balance of tokens with contract address ${decision.token}, then sell exactly ${safeAmount}% of that balance`}
+3. Verify the calculated amount is reasonable and within my balance
+4. Execute the ${decision.action} using contract address: ${decision.token}
+5. Provide a summary of the transaction
+
+CRITICAL: If you need to check token balance, use EXACTLY this address: ${decision.token}
+CRITICAL: If you need to trade tokens, use EXACTLY this address: ${decision.token}
+CRITICAL: NEVER use any other address, symbol, or modified version of this address.`;
+
+      // Safety check: Verify we have enough balance for the intended trade
+      const currentBalance = await this.getWalletBalance();
+      const currentBalanceLamports = Math.floor(currentBalance * 1e9);
+      const maxTradeAmountLamports = Math.floor(currentBalanceLamports * safeAmount / 100);
+      
+      console.log(`\n🛡️ SAFETY CHECK:`);
+      console.log(`   💰 Current balance: ${currentBalance.toFixed(4)} SOL (${currentBalanceLamports} lamports)`);
+      console.log(`   📊 Max trade amount: ${safeAmount}% = ${(maxTradeAmountLamports / 1e9).toFixed(4)} SOL (${maxTradeAmountLamports} lamports)`);
+      
+      if (maxTradeAmountLamports > currentBalanceLamports * 0.99) { // Leave 1% for fees
+        console.log(`   ❌ TRADE REJECTED: Not enough balance for ${safeAmount}% trade`);
+        console.log(`   💡 Suggestion: Reduce percentage or wait for more SOL`);
+        return;
+      }
+      
+      console.log(`   ✅ Trade amount safe - proceeding with execution\n`);
+
+      console.log("🔍 DEBUG INFO:");
+      console.log(`   🎯 Action: ${decision.action}`);
+      console.log(`   📍 Contract Address: "${decision.token}"`);
+      console.log(`   📏 Address Length: ${decision.token?.length || 0} characters`);
+      console.log(`   ✅ Address Validation: ${this.isValidSolanaAddress(decision.token || '')}`);
+      console.log(`   📊 Amount: ${safeAmount}%`);
+      console.log("");
 
       console.log("🤖 Executing trade with AI agent...");
+      console.log("⏰ Timeout set to 60 seconds...");
 
-      const result = await generateText({
+      // Add timeout wrapper
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('AI agent timeout after 60 seconds')), 60000);
+      });
+
+      const generateTextPromise = generateText({
         model: openai("gpt-4o-mini"),
         tools: this.tools,
-        maxSteps: 10,
-        prompt: `You are a based crypto degen assistant specialized in Solana DeFi. You help execute trades based on market analysis.
+        maxSteps: 5, // Reduced from 10 to avoid hanging
+        prompt: `You are a crypto trading assistant. Execute this trade quickly and efficiently.
 
-Current request: ${tradingPrompt}`,
+CONTRACT ADDRESS: ${decision.token}
+ACTION: ${decision.action.toUpperCase()}
+AMOUNT: ${safeAmount}% of SOL balance
+
+CRITICAL: ALL amounts must be INTEGERS - never use decimals like 82719484.75
+
+INSTRUCTIONS:
+1. Check SOL balance in lamports (integer)
+2. ${decision.action === 'buy' ? 
+    `Calculate ${safeAmount}% of SOL balance: Math.floor(balance_lamports * ${safeAmount} / 100) and buy tokens with address ${decision.token}` :
+    `Sell ${safeAmount}% of tokens with address ${decision.token}`}
+3. Execute trade with INTEGER amount only
+4. Report result
+
+Keep it simple and fast. Use the exact contract address: ${decision.token}
+NEVER use decimal amounts - Jupiter API requires integers only.`,
         onStepFinish: (event) => {
-          console.log("🔧 Tool execution:", JSON.stringify(event.toolResults, null, 2));
+          console.log(`🔧 AI Agent Step:`);
+          if (event.toolCalls && event.toolCalls.length > 0) {
+            event.toolCalls.forEach(call => {
+              console.log(`   📞 ${call.toolName}(${JSON.stringify(call.args)})`);
+            });
+          }
+          if (event.toolResults && event.toolResults.length > 0) {
+            event.toolResults.forEach(result => {
+              console.log(`   ✅ Result: ${result.result ? 'Success' : 'Failed'}`);
+            });
+          }
           console.log("-".repeat(30));
         },
       });
+
+      const result = await Promise.race([generateTextPromise, timeoutPromise]) as any;
 
       console.log("\n💼 Trade Execution Result:");
       console.log(result.text);
@@ -818,5 +891,443 @@ Current request: ${tradingPrompt}`,
    */
   private sleep(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  /**
+   * Validate Solana address (mint address)
+   */
+  private isValidSolanaAddress(address: string): boolean {
+    try {
+      const publicKey = new PublicKey(address);
+      return publicKey.toBytes().length === 32;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  /**
+   * Get current token balance for a specific mint address
+   */
+  private async getTokenBalance(mintAddress: string): Promise<number> {
+    try {
+      const tokenMint = new PublicKey(mintAddress);
+      const balance = await getTokenBalance(this.connection, this.keypair.publicKey, tokenMint);
+      return balance;
+    } catch (error) {
+      console.error(`❌ Error getting balance for ${mintAddress}:`, error);
+      return 0;
+    }
+  }
+
+  /**
+   * Verify portfolio balances and retry failed purchases
+   */
+  private async verifyAndRetryPortfolio(targetPortfolio: PortfolioAnalysis): Promise<void> {
+    try {
+      console.log('\n🔍 PORTFOLIO VERIFICATION & RETRY PHASE');
+      console.log('═══════════════════════════════════════════════════════════════════════════════════');
+      
+      const currentBalance = await this.getWalletBalance();
+      console.log(`💰 Current SOL balance: ${currentBalance.toFixed(4)} SOL`);
+      
+      const failedPurchases: Array<{token: any, reason: string}> = [];
+      const successfulPurchases: Array<{token: any, actualBalance: number}> = [];
+      
+      console.log('\n📊 CHECKING ACQUIRED TOKENS:');
+      console.log('-'.repeat(50));
+      
+      // Check each target token
+      for (const token of targetPortfolio.portfolio.tokens) {
+        console.log(`\n🔍 Verifying ${token.symbol} (${token.name})`);
+        console.log(`   📍 Contract: ${token.mint}`);
+        console.log(`   🎯 Target allocation: ${token.allocation}%`);
+        
+        if (!this.isValidSolanaAddress(token.mint)) {
+          failedPurchases.push({token, reason: 'Invalid contract address'});
+          console.log(`   ❌ Invalid contract address - cannot verify`);
+          continue;
+        }
+
+        try {
+          // Check if we actually have this token using direct balance query
+          console.log(`   🔧 Checking actual token balance...`);
+          const tokenBalance = await this.getTokenBalance(token.mint);
+          
+          if (tokenBalance === 0) {
+            failedPurchases.push({token, reason: 'Purchase failed - zero balance'});
+            console.log(`   ❌ Purchase failed - no tokens acquired (balance: 0)`);
+          } else {
+            successfulPurchases.push({token, actualBalance: tokenBalance});
+            console.log(`   ✅ Purchase successful - tokens acquired (balance: ${tokenBalance})`);
+          }
+          
+        } catch (error) {
+          failedPurchases.push({token, reason: `Verification error: ${error}`});
+          console.log(`   ❌ Error verifying balance: ${error}`);
+        }
+
+        // Small delay between checks
+        await this.sleep(1000);
+      }
+
+      // Report verification results
+      console.log('\n📋 VERIFICATION SUMMARY:');
+      console.log('═══════════════════════════════════════════════════════════════════════════════════');
+      console.log(`✅ Successful purchases: ${successfulPurchases.length}/${targetPortfolio.portfolio.tokens.length}`);
+      console.log(`❌ Failed purchases: ${failedPurchases.length}/${targetPortfolio.portfolio.tokens.length}`);
+      
+      if (successfulPurchases.length > 0) {
+        console.log('\n✅ SUCCESSFULLY ACQUIRED:');
+        successfulPurchases.forEach(({token}) => {
+          console.log(`   • ${token.symbol} (${token.allocation}% target)`);
+        });
+      }
+
+      if (failedPurchases.length > 0) {
+        console.log('\n❌ FAILED TO ACQUIRE:');
+        failedPurchases.forEach(({token, reason}) => {
+          console.log(`   • ${token.symbol} (${token.allocation}% target) - ${reason}`);
+        });
+
+        // Retry failed purchases
+        console.log('\n🔄 RETRYING FAILED PURCHASES:');
+        console.log('-'.repeat(50));
+        
+        const updatedBalance = await this.getWalletBalance();
+        const availableForRetry = updatedBalance * 0.99; // Leave 1% for fees
+        
+        console.log(`💰 Available for retry: ${availableForRetry.toFixed(4)} SOL`);
+        
+        if (availableForRetry > 0.001) { // Only retry if we have reasonable amount
+          for (const {token, reason} of failedPurchases) {
+            if (reason.includes('Invalid contract address')) {
+              console.log(`\n⏸️  Skipping ${token.symbol} - invalid address cannot be retried`);
+              continue;
+            }
+
+            console.log(`\n🔄 Retrying ${token.symbol} purchase...`);
+            console.log(`   📍 Contract: ${token.mint}`);
+            console.log(`   🎯 Target: ${token.allocation}%`);
+            
+            // Calculate retry amount (more conservative)
+            const retryPercentage = Math.floor(Math.min(token.allocation, 5)); // Cap at 5% for retries, ensure integer
+            const retryAmount = Math.floor((availableForRetry * retryPercentage / 100) * 1e9); // Convert to lamports
+            
+            if (retryAmount < 1000000) { // Less than 0.001 SOL
+              console.log(`   ⏸️  Retry amount too small: ${(retryAmount / 1e9).toFixed(6)} SOL`);
+              continue;
+            }
+
+            console.log(`   💰 Retry amount: ${retryPercentage}% = ${(retryAmount / 1e9).toFixed(4)} SOL`);
+
+            const retryDecision: AgentDecision = {
+              action: 'buy',
+              token: token.mint,
+              amount: Math.floor(retryPercentage), // Ensure integer amount
+              confidence: 90,
+              reasoning: `Portfolio verification retry: Failed to acquire ${token.symbol} in initial purchase. Retrying with ${Math.floor(retryPercentage)}% allocation.`,
+              timestamp: Date.now()
+            };
+
+            try {
+              await this.executeDecision(retryDecision);
+              console.log(`   ✅ Retry completed for ${token.symbol}`);
+            } catch (error) {
+              console.log(`   ❌ Retry failed for ${token.symbol}: ${error}`);
+            }
+
+            // Delay between retries
+            await this.sleep(3000);
+          }
+        } else {
+          console.log(`⚠️  Insufficient SOL for retries (${availableForRetry.toFixed(4)} SOL available)`);
+        }
+      }
+
+      // Final portfolio verification
+      console.log('\n🎯 FINAL PORTFOLIO VERIFICATION:');
+      console.log('═══════════════════════════════════════════════════════════════════════════════════');
+      
+      const finalBalance = await this.getWalletBalance();
+      console.log(`💰 Final SOL balance: ${finalBalance.toFixed(4)} SOL`);
+      
+      let finalSuccessCount = 0;
+      for (const token of targetPortfolio.portfolio.tokens) {
+        try {
+          const finalBalance = await this.getTokenBalance(token.mint);
+          if (finalBalance > 0) {
+            finalSuccessCount++;
+            console.log(`✅ ${token.symbol}: Acquired (balance: ${finalBalance})`);
+          } else {
+            console.log(`❌ ${token.symbol}: Not acquired (balance: 0)`);
+          }
+        } catch (error) {
+          console.log(`⚠️  ${token.symbol}: Verification error - ${error}`);
+        }
+      }
+
+      const finalSuccessRate = (finalSuccessCount / targetPortfolio.portfolio.tokens.length) * 100;
+      console.log(`\n📊 FINAL SUCCESS RATE: ${finalSuccessCount}/${targetPortfolio.portfolio.tokens.length} tokens (${finalSuccessRate.toFixed(1)}%)`);
+      
+      if (finalSuccessRate >= 80) {
+        console.log('🎉 Portfolio rebalancing successful! 80%+ target allocation achieved.');
+      } else if (finalSuccessRate >= 60) {
+        console.log('⚠️  Portfolio rebalancing partially successful. 60%+ allocation achieved.');
+      } else {
+        console.log('❌ Portfolio rebalancing needs attention. Less than 60% allocation achieved.');
+      }
+
+      console.log('═══════════════════════════════════════════════════════════════════════════════════');
+      
+    } catch (error) {
+      console.error('❌ Error in portfolio verification:', error);
+    }
+  }
+
+  // ===============================================
+  // SIMPLE PORTFOLIO REBALANCING
+  // ===============================================
+
+  /**
+   * Get current wallet SOL balance
+   */
+  async getWalletBalance(): Promise<number> {
+    const balance = await this.connection.getBalance(this.keypair.publicKey);
+    return balance / 1e9; // Convert lamports to SOL
+  }
+
+  /**
+   * Simple portfolio rebalancing - uses wallet balance minus 1% for transaction costs
+   */
+  async rebalancePortfolio(portfolio: PortfolioAnalysis): Promise<void> {
+    console.log('\n💰 SIMPLE PORTFOLIO REBALANCING');
+    console.log('═══════════════════════════════════════════════════════════════════════════════════');
+    
+    // Get current SOL balance
+    const totalBalance = await this.getWalletBalance();
+    console.log(`💵 Current wallet balance: ${totalBalance.toFixed(4)} SOL`);
+    
+    // Reserve 1% for transaction costs
+    const reservedForTxCosts = totalBalance * 0.01;
+    const availableForTrading = totalBalance - reservedForTxCosts;
+    
+    console.log(`🔒 Reserved for transaction costs: ${reservedForTxCosts.toFixed(4)} SOL (1%)`);
+    console.log(`💰 Available for trading: ${availableForTrading.toFixed(4)} SOL`);
+    
+    if (availableForTrading <= 0) {
+      console.log('⚠️  No funds available for trading after reserving transaction costs');
+      return;
+    }
+    
+    console.log(`\n🎯 Rebalancing into ${portfolio.portfolio.tokens.length} tokens:`);
+    
+    // Execute trades for each token in the portfolio
+    for (const token of portfolio.portfolio.tokens) {
+      const allocationAmount = (availableForTrading * token.allocation) / 100;
+      
+      const allocationAmountLamports = Math.floor(allocationAmount * 1e9); // Convert to lamports (integer)
+      console.log(`\n🪙 ${token.symbol} (${token.name})`);
+      console.log(`   📍 Contract: ${token.mint}`);
+      console.log(`   📊 Allocation: ${Math.floor(token.allocation)}% = ${(allocationAmountLamports / 1e9).toFixed(4)} SOL (${allocationAmountLamports} lamports)`);
+      console.log(`   📈 Confidence: ${token.confidence}%`);
+      console.log(`   💭 Reason: ${token.reasoning}`);
+      
+      // Validate mint address before proceeding
+      if (!this.isValidSolanaAddress(token.mint)) {
+        console.log(`   ❌ Invalid mint address: ${token.mint} - skipping trade`);
+        continue;
+      }
+      
+      // Only execute if we have enough confidence
+      if (token.confidence >= 70) {
+        const decision: AgentDecision = {
+          action: 'buy',
+          token: token.mint, // Use mint address instead of symbol
+          amount: Math.floor(token.allocation), // Use allocation percentage directly as integer
+          confidence: token.confidence,
+          reasoning: `Portfolio rebalancing: ${Math.floor(token.allocation)}% allocation for ${token.symbol} (${token.mint}). ${token.reasoning}`,
+          timestamp: Date.now()
+        };
+        
+        console.log(`   ✅ Executing trade for ${allocationAmount.toFixed(4)} SOL`);
+        await this.executeDecision(decision);
+      } else {
+        console.log(`   ⏸️  Skipping - confidence ${token.confidence}% below 70% threshold`);
+      }
+    }
+    
+    console.log('\n✅ Initial portfolio rebalancing completed!');
+    
+    // Verify portfolio and retry failed purchases
+    await this.verifyAndRetryPortfolio(portfolio);
+    
+    console.log('\n🎯 Portfolio rebalancing fully completed!');
+  }
+
+  /**
+   * Generate and rebalance portfolio now
+   */
+  async generateAndRebalancePortfolio(riskProfile: 'conservative' | 'moderate' | 'aggressive' = 'moderate', tokenCount: number = 5): Promise<void> {
+    console.log('\n🎯 GENERATING AND REBALANCING PORTFOLIO');
+    console.log('═══════════════════════════════════════════════════════════════════════════════════');
+    
+    // Generate portfolio
+    const portfolio = await this.generatePortfolioNow(riskProfile, tokenCount);
+    
+    // Rebalance into the new portfolio
+    await this.rebalancePortfolio(portfolio);
+  }
+
+  /**
+   * Perform automatic portfolio rebalancing (main loop method)
+   */
+  private async performPortfolioRebalancing(): Promise<void> {
+    try {
+      console.log('\n💰 AUTOMATIC PORTFOLIO REBALANCING');
+      console.log('═══════════════════════════════════════════════════════════════════════════════════');
+      
+      // Store current portfolio tokens for comparison (using mint addresses)
+      const currentTokens = this.currentPortfolio ? 
+        this.currentPortfolio.portfolio.tokens.map(t => ({ mint: t.mint, symbol: t.symbol, name: t.name })) : [];
+      
+      // Determine optimal risk profile based on market conditions
+      const riskProfile = this.determineRiskProfile();
+      console.log(`🎯 Risk Profile: ${riskProfile.toUpperCase()}`);
+      
+      // Generate new 10-token portfolio
+      const newPortfolio = await this.portfolioService.generateEqualAllocationPortfolio(10, riskProfile);
+      const newTokens = newPortfolio.portfolio.tokens.map(t => ({ mint: t.mint, symbol: t.symbol, name: t.name }));
+      
+      console.log(`\n🔄 Portfolio Comparison:`);
+      console.log(`   Current: ${currentTokens.length} tokens: [${currentTokens.map(t => t.symbol).join(', ')}]`);
+      console.log(`   New: ${newTokens.length} tokens: [${newTokens.map(t => t.symbol).join(', ')}]`);
+      
+      // Find tokens to sell and buy using mint addresses for comparison
+      const currentMints = currentTokens.map(t => t.mint);
+      const newMints = newTokens.map(t => t.mint);
+      
+      const tokensToSell = currentTokens.filter(token => !newMints.includes(token.mint));
+      const tokensToBuy = newTokens.filter(token => !currentMints.includes(token.mint));
+      const tokensToKeep = currentTokens.filter(token => newMints.includes(token.mint));
+      
+      console.log(`\n📊 Rebalancing Actions:`);
+      console.log(`   🔴 Sell: ${tokensToSell.length} tokens: [${tokensToSell.map(t => t.symbol).join(', ')}]`);
+      console.log(`   🟢 Buy: ${tokensToBuy.length} tokens: [${tokensToBuy.map(t => t.symbol).join(', ')}]`);
+      console.log(`   🔄 Keep: ${tokensToKeep.length} tokens: [${tokensToKeep.map(t => t.symbol).join(', ')}]`);
+      
+      // Get current SOL balance
+      const totalBalance = await this.getWalletBalance();
+      const reservedForTxCosts = totalBalance * 0.01; // 1% reserved for transaction costs
+      
+      console.log(`\n💵 Wallet Status:`);
+      console.log(`   Total SOL: ${totalBalance.toFixed(4)} SOL`);
+      console.log(`   Reserved for TX: ${reservedForTxCosts.toFixed(4)} SOL (1%)`);
+      
+      // Step 1: Sell tokens that are no longer in the new portfolio
+      if (tokensToSell.length > 0) {
+        console.log(`\n🔴 SELLING PHASE - Removing ${tokensToSell.length} tokens from portfolio`);
+        console.log('-'.repeat(50));
+        
+        for (const tokenInfo of tokensToSell) {
+          console.log(`\n💸 Selling all ${tokenInfo.symbol} tokens...`);
+          console.log(`   📍 Contract: ${tokenInfo.mint}`);
+          
+          // Validate mint address before creating decision
+          if (!this.isValidSolanaAddress(tokenInfo.mint)) {
+            console.log(`   ❌ Invalid mint address: ${tokenInfo.mint} - skipping sell`);
+            continue;
+          }
+          
+          const sellDecision: AgentDecision = {
+            action: 'sell',
+            token: tokenInfo.mint, // Use mint address instead of symbol
+            amount: 100, // Sell 100% of holdings
+            confidence: 95,
+            reasoning: `Portfolio rebalancing: Removing ${tokenInfo.symbol} (${tokenInfo.mint}) from new portfolio allocation`,
+            timestamp: Date.now()
+          };
+          
+          await this.executeDecision(sellDecision);
+        }
+      } else {
+        console.log(`\n✅ No tokens to sell - all current tokens remain in new portfolio`);
+      }
+      
+      // Step 2: Calculate new allocation and buy/rebalance tokens
+      console.log(`\n🟢 BUYING/REBALANCING PHASE - Allocating into 10 tokens`);
+      console.log('-'.repeat(50));
+      
+      // Get updated SOL balance after selling
+      const updatedBalance = await this.getWalletBalance();
+      const updatedReserved = updatedBalance * 0.01;
+      const availableForTrading = updatedBalance - updatedReserved;
+      
+      console.log(`\n💰 Updated wallet after selling:`);
+      console.log(`   Total SOL: ${updatedBalance.toFixed(4)} SOL`);
+      console.log(`   Reserved for TX: ${updatedReserved.toFixed(4)} SOL (1%)`);
+      console.log(`   Available for trading: ${availableForTrading.toFixed(4)} SOL`);
+      
+      if (availableForTrading <= 0) {
+        console.log('⚠️  No funds available for trading after reserving transaction costs');
+        return;
+      }
+      
+      // Buy/rebalance each token in the new portfolio
+      for (const token of newPortfolio.portfolio.tokens) {
+        const allocationAmount = (availableForTrading * token.allocation) / 100;
+        
+        const allocationAmountLamports = Math.floor(allocationAmount * 1e9); // Convert to lamports (integer)
+        console.log(`\n🪙 ${token.symbol} (${token.name})`);
+        console.log(`   📍 Contract: ${token.mint}`);
+        console.log(`   📊 Target allocation: ${Math.floor(token.allocation)}% = ${(allocationAmountLamports / 1e9).toFixed(4)} SOL (${allocationAmountLamports} lamports)`);
+        console.log(`   📈 Confidence: ${token.confidence}%`);
+        console.log(`   💭 Reason: ${token.reasoning}`);
+        
+        // Validate mint address before proceeding
+        if (!this.isValidSolanaAddress(token.mint)) {
+          console.log(`   ❌ Invalid mint address: ${token.mint} - skipping buy`);
+          continue;
+        }
+        
+        // Execute trade if confidence is high enough
+        if (token.confidence >= 60) { // Lower threshold for automatic rebalancing
+          const buyDecision: AgentDecision = {
+            action: 'buy',
+            token: token.mint, // Use mint address instead of symbol
+            amount: Math.floor(token.allocation), // Use allocation percentage directly as integer
+            confidence: token.confidence,
+            reasoning: `Portfolio rebalancing: ${Math.floor(token.allocation)}% allocation for ${token.symbol} (${token.mint}). ${token.reasoning}`,
+            timestamp: Date.now()
+          };
+          
+          console.log(`   ✅ Executing buy order for ${allocationAmount.toFixed(4)} SOL`);
+          await this.executeDecision(buyDecision);
+        } else {
+          console.log(`   ⏸️  Skipping - confidence ${token.confidence}% below 60% threshold`);
+        }
+        
+        // Small delay between trades to avoid overwhelming the system
+        await this.sleep(2000);
+      }
+      
+      // Update current portfolio
+      this.currentPortfolio = newPortfolio;
+      this.lastPortfolioUpdate = Date.now();
+      
+      console.log('\n✅ INITIAL PORTFOLIO REBALANCING COMPLETED!');
+      console.log('═══════════════════════════════════════════════════════════════════════════════════');
+      
+      // Verify portfolio and retry failed purchases
+      await this.verifyAndRetryPortfolio(newPortfolio);
+      
+      console.log('\n🎯 AUTOMATIC PORTFOLIO REBALANCING FULLY COMPLETED!');
+      console.log('═══════════════════════════════════════════════════════════════════════════════════');
+      
+      // Print final portfolio summary
+      this.printPortfolioSummary(newPortfolio);
+      
+    } catch (error) {
+      console.error('❌ Error in automatic portfolio rebalancing:', error);
+    }
   }
 } 
