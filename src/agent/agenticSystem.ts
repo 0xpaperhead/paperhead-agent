@@ -16,8 +16,9 @@ import { TopicGenerator } from "../services/topicGenerator.js";
 import { TrendAnalyzer } from "../services/trendAnalyzer.js";
 import { TrendingTokensService } from "../services/trendingTokensService.js";
 import { PortfolioService } from "../services/portfolioService.js";
-import { AgentState, AgentDecision, PortfolioAnalysis } from "../types/index.js";
+import { AgentState, AgentDecision, PortfolioAnalysis, TradingConfiguration } from "../types/index.js";
 import { getTokenBalance, getAllTokenBalances } from "../utils/tokenUtils.js";
+import { getTradingConfigByRiskProfile } from "../services/tradingConfig.js";
 
 export class AgenticSystem {
   private newsService: NewsService;
@@ -28,6 +29,7 @@ export class AgenticSystem {
   private tools: any;
   private connection!: Connection;
   private keypair!: Keypair;
+  private tradingConfig: TradingConfiguration;
   
   private state: AgentState = {
     isRunning: false,
@@ -38,9 +40,8 @@ export class AgenticSystem {
     lastDecision: undefined
   };
 
-  // Portfolio state - now automatically rebalanced every 24 hours
+  // Portfolio state - now automatically rebalanced based on trading config
   private currentPortfolio: PortfolioAnalysis | null = null;
-  private portfolioUpdateInterval = 24 * 60 * 60 * 1000; // 24 hours for portfolio updates
   private lastPortfolioUpdate = 0;
 
 
@@ -54,7 +55,7 @@ export class AgenticSystem {
     this.trendAnalyzer = new TrendAnalyzer();
     this.trendingTokensService = new TrendingTokensService();
     this.portfolioService = new PortfolioService(this.trendingTokensService, this.trendAnalyzer);
-    
+    this.tradingConfig = getTradingConfigByRiskProfile('moderate'); // Default to moderate config
   }
 
   /**
@@ -125,16 +126,27 @@ export class AgenticSystem {
     while (this.state.isRunning) {
       try {
         console.log("\n" + "=".repeat(60));
-        console.log("🔄 Starting 24-Hour Analysis & Rebalancing Cycle");
+        console.log("🔄 Starting Market Analysis & Conditional Rebalancing Cycle");
         console.log("=".repeat(60));
 
         await this.performFullAnalysis();
-        await this.performPortfolioRebalancing();
+        
+        // Check if portfolio rebalancing is needed
+        const shouldRebalance = this.shouldUpdatePortfolio();
+        if (shouldRebalance) {
+          await this.performPortfolioRebalancing();
+        } else {
+          console.log("📊 Portfolio rebalancing not needed - conditions don't warrant changes");
+        }
 
         this.state.lastUpdate = Date.now();
 
-        console.log("✅ 24-hour cycle completed. Waiting for next cycle...\n");
-        await this.sleep(this.updateInterval);
+        // Determine next cycle timing based on whether we rebalanced
+        const nextAnalysisInterval = this.tradingConfig.portfolioUpdateIntervalMs / 4; // Analyze 4x more frequently than rebalancing
+        const waitTime = shouldRebalance ? this.tradingConfig.portfolioUpdateIntervalMs : nextAnalysisInterval;
+        
+        console.log(`✅ Analysis cycle completed. Next analysis in ${Math.round(waitTime / (60 * 60 * 1000))}h...\n`);
+        await this.sleep(waitTime);
 
       } catch (error) {
         console.error("❌ Error in main loop:", error);
@@ -268,33 +280,50 @@ export class AgenticSystem {
    * Check if portfolio should be updated
    */
   private shouldUpdatePortfolio(): boolean {
+    console.log("\n🔍 PORTFOLIO UPDATE EVALUATION:");
+    console.log("-".repeat(50));
+    
     const timeSinceLastUpdate = Date.now() - this.lastPortfolioUpdate;
+    const hoursElapsed = Math.round(timeSinceLastUpdate / (60 * 60 * 1000));
+    const requiredHours = Math.round(this.tradingConfig.portfolioUpdateIntervalMs / (60 * 60 * 1000));
+    
+    console.log(`⏰ Time since last update: ${hoursElapsed}h (Required: ${requiredHours}h)`);
     
     // Update portfolio if:
     // 1. No portfolio exists yet
     // 2. Portfolio update interval has passed
     // 3. Significant market changes detected
     if (!this.currentPortfolio) {
-      console.log("📝 No portfolio exists - generating initial portfolio");
+      console.log("📝 ✅ TRIGGER: No portfolio exists - generating initial portfolio");
       return true;
     }
     
-    if (timeSinceLastUpdate > this.portfolioUpdateInterval) {
-      console.log("⏰ Portfolio update interval reached - refreshing portfolio");
+    if (timeSinceLastUpdate > this.tradingConfig.portfolioUpdateIntervalMs) {
+      console.log("⏰ ✅ TRIGGER: Portfolio update interval reached - refreshing portfolio");
       return true;
     }
     
     // Check for significant market changes
     const stats = this.trendAnalyzer.getSummaryStats();
     const fearGreedTrend = this.trendAnalyzer.getFearGreedTrend();
+    const fearGreedChange = fearGreedTrend.current?.change ?? 0;
+    
+    console.log(`📊 Market condition: ${stats.marketCondition.toUpperCase()}`);
+    console.log(`😱 Fear & Greed change: ${fearGreedChange > 0 ? '+' : ''}${fearGreedChange}`);
     
     // Trigger update on major market sentiment changes
-    if (stats.marketCondition === 'bearish' || 
-        (fearGreedTrend.current && Math.abs(fearGreedTrend.current.change ?? 0) > 20)) {
-      console.log("🚨 Significant market changes detected - updating portfolio");
+    if (stats.marketCondition === 'bearish') {
+      console.log("🚨 ✅ TRIGGER: Bearish market conditions detected - defensive rebalancing needed");
       return true;
     }
     
+    if (fearGreedTrend.current && Math.abs(fearGreedChange) > 20) {
+      console.log(`🚨 ✅ TRIGGER: Major Fear & Greed shift (${fearGreedChange}) - sentiment-based rebalancing needed`);
+      return true;
+    }
+    
+    console.log("✋ ❌ NO TRIGGER: Market conditions stable - maintaining current portfolio");
+    console.log("-".repeat(50));
     return false;
   }
 
@@ -323,6 +352,14 @@ export class AgenticSystem {
     } catch (error) {
       console.error("❌ Error generating portfolio:", error);
     }
+  }
+
+  /**
+   * Update trading configuration based on risk profile
+   */
+  private updateTradingConfig(riskProfile: 'conservative' | 'moderate' | 'aggressive'): void {
+    this.tradingConfig = getTradingConfigByRiskProfile(riskProfile);
+    console.log(`📊 Trading config updated for ${riskProfile} profile (Portfolio updates every ${Math.round(this.tradingConfig.portfolioUpdateIntervalMs / (60 * 60 * 1000))}h)`);
   }
 
   /**
@@ -1192,6 +1229,7 @@ NEVER use decimal amounts - Jupiter API requires integers only.`,
       
       // Determine optimal risk profile based on market conditions
       const riskProfile = this.determineRiskProfile();
+      this.updateTradingConfig(riskProfile);
       console.log(`🎯 Risk Profile: ${riskProfile.toUpperCase()}`);
       
       // Generate new 10-token portfolio
