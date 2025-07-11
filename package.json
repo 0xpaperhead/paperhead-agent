@@ -16,12 +16,17 @@
     "test:file": "cross-env NODE_ENV=test npm run test -- --testPathPattern",
     "test:watch": "cross-env NODE_ENV=test npm run test -- --watch",
     "test:coverage": "cross-env NODE_ENV=test npm run test -- --coverage",
+    "system-test": "cross-env NODE_ENV=test npx ts-node src/scripts/fullSystemTest.ts",
+
+    "script:test-purchase-token": "cross-env NODE_ENV=development nodemon --ext js,ts,json,env --exec \"node --experimental-specifier-resolution=node --loader ts-node/esm src/test-purchase-token.ts\"",
+    "script:test-portfolio": "cross-env NODE_ENV=development nodemon --ext js,ts,json,env --exec \"node --experimental-specifier-resolution=node --loader ts-node/esm src/test-portfolio.ts\"", 
+    "script:test-full-system": "cross-env NODE_ENV=development nodemon --ext js,ts,json,env --exec \"node --experimental-specifier-resolution=node --loader ts-node/esm src/scripts/fullSystemTest.ts\"", 
     
     "lint": "eslint --ext .ts,.js .",
     "format": "prettier \"./**\" --write --ignore-unknown",
     "format:check": "prettier \"./**\" --ignore-unknown --check",
     "deploy": "gcloud app deploy",
-    "help": "echo \"\n\nAvailable commands: \n- start: Start the bot\n- dev: Start the bot in development mode (cross-platform)\n- windev: Start the bot in development mode (Windows)\n- update:db: Update the database types\n- build: Build the bot\n- clean: Cleans the build files\n- lint: Lint the code\n- format: Format the code\n- test: Runs code tests\n- deploy: Deploys to GCP (App Engine)\n- help: Show this message\n\n\""
+    "help": "echo \"\n\nAvailable commands: \n- start: Start the bot\n- dev: Start the bot in development mode (cross-platform)\n- windev: Start the bot in development mode (Windows)\n- update:db: Update the database types\n- build: Build the bot\n- clean: Cleans the build files\n- lint: Lint the code\n- format: Format the code\n- test: Runs code tests\n- system-test: Run full system integration test\n- deploy: Deploys to GCP (App Engine)\n- help: Show this message\n\n\""
   },
   "dependencies": {
     "jsonwebtoken": "^9.0.2",

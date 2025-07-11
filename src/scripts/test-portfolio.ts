@@ -1,7 +1,7 @@
-import { AgenticSystem } from './agent/agenticSystem.js';
-import { PortfolioService } from './services/portfolioService.js';
-import { TrendingTokensService } from './services/trendingTokensService.js';
-import { TrendAnalyzer } from './services/trendAnalyzer.js';
+import { AgenticSystem } from '../agent/agenticSystem.js';
+import { PortfolioService } from '../services/portfolioService.js';
+import { TrendingTokensService } from '../services/trendingTokensService.js';
+import { TrendAnalyzer } from '../services/trendAnalyzer.js';
 
 export async function testPortfolioSystem() {
   console.log("🎯".repeat(30));

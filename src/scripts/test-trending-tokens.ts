@@ -1,4 +1,4 @@
-import { TrendingTokensService } from './services/trendingTokensService.js';
+import { TrendingTokensService } from '../services/trendingTokensService.js';
 
 export async function testTrendingTokens() {
   console.log('🧪 Testing Trending Tokens Service...\n');
