@@ -1,4 +1,4 @@
-import { Config } from "../libs/config.js";
+import { Config } from "../config/index.js";
 import { NewsArticle, SentimentData, TopicScore, FearGreedResponse, FearGreedAnalysis } from "../types/index.js";
 
 export class NewsService {

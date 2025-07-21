@@ -210,6 +210,8 @@ export interface PortfolioToken {
   confidence: number; // Overall confidence in this pick
 }
 
+export type RiskProfile = 'conservative' | 'moderate' | 'aggressive';
+
 export interface Portfolio {
   id: string;
   name: string;
@@ -225,7 +227,7 @@ export interface Portfolio {
       totalTokensAnalyzed: number;
     };
     strategy: 'equal_weight' | 'momentum_based' | 'sentiment_driven' | 'risk_adjusted';
-    riskProfile: 'conservative' | 'moderate' | 'aggressive';
+    riskProfile: RiskProfile;
   };
 }
 

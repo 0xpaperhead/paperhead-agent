@@ -1,4 +1,5 @@
 import dotenv from 'dotenv';
+import { RiskProfile } from '../types/index.js';
 dotenv.config();
 
 export const Config = {
@@ -17,6 +18,7 @@ export const Config = {
     solana_rpc_url: process.env.SOLANA_RPC_URL!,
     solana_private_key: process.env.SOLANA_PRIVATE_KEY!,
     openai_api_key: process.env.OPENAI_API_KEY!,
+    risk_profile: (process.env.RISK_PROFILE as RiskProfile) || 'moderate',
   },
   solanaTracker: {
     apiKey: process.env.SOLANA_TRACKER_API_KEY!,

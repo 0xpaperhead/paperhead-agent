@@ -4,7 +4,7 @@
 import { IncomingMessage, ServerResponse } from 'http';
 import jwt from 'jsonwebtoken'; // Ensure you have jsonwebtoken installed
 import { AuthenticatedRequest, Payload } from '../types/server.js';
-import { Config } from '../libs/config.js';
+import { Config } from '../config/index.js';
 
 export async function createJwt(iss?: string): Promise<string> {
   const payloadData = {

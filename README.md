@@ -1,155 +1,168 @@
-# Paperhead – AI-Powered Solana Trading Agent
+# Paperhead Agent - Autonomous Solana Trading System
 
-Paperhead is an **experimental, fully-autonomous crypto trading agent** built with TypeScript & Node.js.  
-It analyses real-time news, on-chain data and market sentiment to automatically generate trading decisions for the **Solana** ecosystem and execute them on-chain through the [GOAT SDK](https://github.com/goat-sdk/goat).
-
-> ⚠️  **DISCLAIMER**  
-> This project is **research / educational** material and **NOT** financial advice.  
-> You are fully responsible for any funds you connect to this bot. Use at your own risk.
-
----
+An intelligent, autonomous trading agent built for the Solana blockchain that combines real-time market sentiment analysis, trending token detection, and AI-powered decision making to automatically manage cryptocurrency portfolios.
 
 ## ✨ Features
 
-• **Agentic Architecture** – multi-step reasoning powered by OpenAI GPT-4o.  
-• **Market Intelligence** – aggregates crypto news, "Fear & Greed" index, social sentiment & trending topics.  
-• **On-Chain Execution** – swaps SOL & SPL tokens using Jupiter & Orca liquidity routes.  
-• **Dynamic Portfolio Builder** – AI generates risk-balanced token baskets and rebalances every few hours.  
-• **Full TypeScript Codebase** – strict types, ESLint, Prettier, Jest unit tests.  
-• **Cross-Platform Dev Scripts** – `dev` (Unix) & `windev` (Windows).
+### 🎯 Risk Management
+You can set the risk level for portfolios in multiple ways:
 
----
-
-## 🚀 Quick start
-
+#### 1. Environment Variable (Recommended for Production)
 ```bash
-# 1. Clone
-$ git clone https://github.com/<your-fork>/paperhead-agent.git
-$ cd paperhead-agent
-
-# 2. Install dependencies
-$ npm install
-
-# 3. Configure environment
-$ cp .env.example .env     # or create .env manually (see below)
-$ code .env                # add all required keys
-
-# 4. Run in development (hot-reload)
-$ npm run dev              # macOS / Linux
-#  or
-$ npm run windev           # Windows PowerShell
-
-# 5. Build & start in production
-$ npm run build && npm start
+# Add to your .env file
+RISK_PROFILE=aggressive  # Options: conservative, moderate, aggressive
 ```
 
-> **Node.js 18+** is required because the project relies on native `fetch` and ES modules.
-
----
-
-## 🔧 Environment variables
-
-Create a `.env` file in the project root and provide **all** variables below.  
-An incomplete configuration will cause the bot to crash at start-up.
-
-```dotenv
-# ─────────────────────────────────────────────
-# General
-NODE_ENV=development          # development | production | test
-PORT=8080                     # optional – only relevant if you expose a REST API
-INTERNAL_API_KEY=changeme     # arbitrary string for internal auth
-
-# ─────────────────────────────────────────────
-# OpenAI (required for all AI features)
-OPENAI_API_KEY=sk-...
-
-# ─────────────────────────────────────────────
-# Solana & Trading
-SOLANA_RPC_URL=https://api.mainnet-beta.solana.com
-SOLANA_PRIVATE_KEY=...        # base58-encoded private key **loaded in memory**
-SOLANA_TRACKER_API_KEY=...    # https://solanatracker.io/ (used by TrendingTokensService)
-
-# ─────────────────────────────────────────────
-# External Data Providers
-RAPID_API_KEY=...             # https://rapidapi.com/
-MORALIS_API_KEY=...           # https://moralis.io/
+#### 2. Constructor Parameter (Recommended for Scripts/Testing)
+```typescript
+// In main.ts or any script
+const agent = new Agent('conservative');  // Override environment setting
 ```
 
-> Never commit `.env` to version control – it contains private keys!
-
----
-
-## 📜 NPM scripts
-
-| Command            | Description                                   |
-|--------------------|-----------------------------------------------|
-| `npm run dev`      | Start the bot in watch-mode (Unix)            |
-| `npm run windev`   | Start the bot in watch-mode (Windows)         |
-| `npm run build`    | Transpile TypeScript → `dist/`                |
-| `npm start`        | Launch compiled code (`dist/main.js`)         |
-| `npm test`         | Run Jest test suite                           |
-| `npm run lint`     | ESLint with @typescript-eslint rules          |
-| `npm run format`   | Auto-format repo via Prettier                 |
-| `npm run clean`    | Remove build artefacts                        |
-
----
-
-## 🗂️  Project structure
-
-```text
-└─ src/
-   ├─ agent/               # Agentic core (decision loops, execution)
-   │   └─ agenticSystem.ts
-   ├─ services/            # Domain services (news, tokens, portfolio …)
-   ├─ libs/                # Helpers (config loader, utilities)
-   ├─ types/               # Shared TypeScript types
-   └─ main.ts              # Entry point – starts the infinite loop
+#### 3. Dynamic Runtime Setting
+```typescript
+const agent = new Agent();
+agent.setDefaultRiskProfile('aggressive');  // Change after creation
+console.log(agent.getDefaultRiskProfile()); // Get current setting
 ```
 
-Key file to explore: **`src/agent/agenticSystem.ts`** – 800+ lines that orchestrate all services, generates decisions & executes trades.
+#### 4. Per-Portfolio Basis
+```typescript
+// Generate specific portfolios with different risk levels
+const conservativePortfolio = await agent.generatePortfolioNow('conservative', 5);
+const aggressivePortfolio = await agent.generatePortfolioNow('aggressive', 10);
 
----
-
-## 🏗️  Architecture overview
-
-1. **Data Ingestion** – `NewsService`, `TrendingTokensService`, etc. fetch external data in parallel.  
-2. **Analysis** – `TrendAnalyzer` aggregates scores, detects momentum, calculates sentiment and Fear & Greed trends.  
-3. **Portfolio** – `PortfolioService` builds equal-allocation baskets based on risk profile (`conservative`, `moderate`, `aggressive`).  
-4. **Decision Making** – `AgenticSystem` feeds a GPT-4o model a comprehensive market report and asks for a JSON-structured action (`buy` / `sell` / `hold`).  
-5. **Execution** – When confidence ≥ 70 % the bot routes swaps through Jupiter/Orca pools using the GOAT SDK.
-
----
-
-## 🧪 Testing
-
-```bash
-# Run all tests once
-$ npm test
-
-# Watch mode
-$ npm run test:watch
+// Or use the default risk profile
+const defaultPortfolio = await agent.generateDefaultPortfolio(8);
 ```
 
-Unit tests live under `__tests__/` or alongside source files.
+**Risk Profile Characteristics:**
+*(Defined in `src/config/trading.ts` as the single source of truth)*
+- **`conservative`**: Lower risk tokens (0-4 risk score), higher liquidity requirements, more stable allocations, **48-hour update interval**
+- **`moderate`**: Balanced risk/reward (0-7 risk score), standard liquidity, default for most users, **24-hour update interval**
+- **`aggressive`**: Higher risk tolerance (0-10 risk score), includes volatile tokens, higher potential returns, **12-hour update interval**
 
----
+## 📊 Enhanced Logging System
 
-## 🖋️  Coding standards
+The system now provides comprehensive, insightful logging throughout all operations:
 
-• **ESLint** with the TypeScript plugin – `npm run lint`  
-• **Prettier** for formatting – `npm run format`  
-• **Conventional Commits** are recommended (`feat:`, `fix:`, etc.).
+### 🚀 System Startup Diagnostics
+- **Environment Validation**: Checks all required API keys and environment variables
+- **System Information**: Node.js version, memory usage, startup time
+- **Configuration Summary**: Risk profile, update intervals, data sources
+- **Wallet Information**: Solana wallet address and SOL balance
 
----
+### 📈 Market Analysis Insights
+- **Sentiment Analysis**: Real-time crypto sentiment with trend interpretation
+- **Fear & Greed Index**: Current values with actionable recommendations
+- **Trending Topics**: Rising/falling topics with momentum indicators
+- **Token Analysis**: Risk distribution, top performers, volume leaders
+- **Market Insights**: AI-generated actionable insights based on current conditions
 
-## 🤝 Contributing
+### 🔍 Trend Analysis Details
+- **Historical Data**: Shows data points available for each topic
+- **Trend Calculations**: Explains why trends are/aren't detected
+- **Trend Strength**: Quantified momentum with direction indicators
+- **Troubleshooting**: Clear explanations when insufficient data exists
 
-Pull requests are welcome!  
-Please open an issue to discuss major changes first.  
-Make sure to run `npm run lint && npm test` before submitting.
+### 💼 Portfolio Generation Process
+- **Market Context**: Current sentiment, Fear & Greed, market conditions
+- **Token Scoring**: Detailed scoring process for each risk profile
+- **Selection Criteria**: Shows filtering criteria and success rates  
+- **Token Details**: Risk scores, liquidity, confidence, and reasoning for each selection
+- **Performance Metrics**: Allocation percentages and portfolio analysis
 
----
+### 🔄 Trading Operations
+- **Rebalancing Logic**: Explains when and why portfolio updates occur
+- **Market Conditions**: Real-time assessment of trading environment
+- **Decision Tracking**: Complete audit trail of all trading decisions
+- **Error Handling**: Detailed error messages with troubleshooting guidance
 
-## ⚖️ License
+### 📦 Data Management
+- **API Status**: Connection status for all external data sources
+- **Cache Management**: Shows cache hits/misses and data freshness
+- **Rate Limiting**: Monitors API usage and prevents overuse
+- **Data Quality**: Validates and reports on data integrity
 
-This repository is licensed under the **MIT License**. See `LICENSE` for details.
+### 💡 Example Enhanced Log Output
+```
+🎭 PAPERHEAD AGENTIC TRADING SYSTEM INITIALIZATION
+💰 24-Hour Automatic Portfolio Rebalancing System
+🎯 10-Token Diversified Portfolio Strategy
+
+⚙️ SYSTEM STARTUP DIAGNOSTICS
+──────────────────────────────────────────────────
+🌐 Node.js Version: v18.17.0
+📅 Startup Time: 12/15/2024, 3:45:22 PM
+💾 Memory Usage: 245MB
+
+🔐 ENVIRONMENT VALIDATION:
+   ✅ OPENAI_API_KEY: Configured
+   ✅ RAPID_API_KEY: Configured  
+   ✅ SOLANA_TRACKER_API_KEY: Configured
+   ✅ SOLANA_RPC_URL: Configured
+   ✅ SOLANA_PRIVATE_KEY: Configured
+
+🔗 Connecting to Solana blockchain...
+✅ Solana Service initialized. Wallet: Q6DB5ixc67CAQsDpkNcviwgFdbGVRaAoYyxHXgFDXaF
+💰 Current Balance: 2.4567 SOL
+
+📊 COMPREHENSIVE ANALYSIS SUMMARY
+==================================================
+🎯 Market Condition: BULLISH
+📈 Topics: 15 tracked | 🔥 3 rising | 📉 1 falling
+😊 Sentiment: improving
+😱 Fear & Greed: 71 (Greed) (stable)
+
+😊 SENTIMENT ANALYSIS:
+   📊 Current: 38.9% positive | 13.8% negative
+   📈 Total Articles: 1387
+   🔄 Trend: stable (+0.3%)
+   💡 Interpretation: Neutral ➡️
+
+🚀 TOP TRENDING TOPICS:
+   1. 📈 solana: +5.2% (51 articles)
+   2. 📈 pump: +3.1% (12 articles)
+   3. 📉 bonk: -2.4% (9 articles)
+
+💡 MARKET INSIGHTS:
+   1. ✅ Low market risk environment - good for position building
+   2. 🎯 Aligned bullish signals - favorable for portfolio building
+   3. 📊 Market conditions are neutral - balanced approach recommended
+
+💼 PORTFOLIO GENERATION STARTING
+🎯 Target: 10-token equal allocation portfolio
+⚠️ Risk Profile: MODERATE
+💰 Allocation per token: 10.0%
+
+🔍 Market Context:
+   😊 Sentiment: 38.9% positive
+   😱 Fear & Greed: 71 (Greed)
+   📊 Market Condition: BULLISH
+   🔥 Trending Topics: 15 identified
+
+⚖️ SCORING AND FILTERING TOKENS...
+✅ Scored 58 tokens for moderate portfolio
+
+📋 MODERATE CRITERIA:
+   ⚠️ Max Risk Score: 7/10
+   💰 Min Liquidity: $100K
+   📈 Min Confidence: 50%
+
+🪙 SELECTED TOKENS SUMMARY:
+   1. SOL (Solana) 
+      📊 Sentiment: 85/100 | Risk: 2/10
+      💰 Liquidity: $45,234K
+      📈 Confidence: 92% | Momentum: 78/100
+      💭 Strong ecosystem growth with increasing DeFi adoption. Low risk due to...
+```
+
+This enhanced logging system provides complete transparency into:
+- ✅ **System Health**: All components are working correctly
+- 📊 **Market Analysis**: Real-time insights for informed decisions  
+- 🎯 **Portfolio Logic**: Why specific tokens were selected
+- 🔄 **Trading Rationale**: Complete audit trail of decisions
+- ⚠️ **Risk Management**: How risk profiles affect token selection
+- 💡 **Actionable Insights**: AI-generated market recommendations
+
+The logs are designed to be both human-readable for monitoring and comprehensive enough for debugging and optimization.

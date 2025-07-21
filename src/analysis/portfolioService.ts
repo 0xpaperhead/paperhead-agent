@@ -6,7 +6,8 @@ import {
   PortfolioAnalysis, 
   TrendingToken,
   FearGreedAnalysis,
-  SentimentData
+  SentimentData,
+  RiskProfile
 } from "../types/index.js";
 
 export class PortfolioService {
@@ -23,27 +24,78 @@ export class PortfolioService {
    */
   async generateEqualAllocationPortfolio(
     numberOfTokens: number = 5,
-    riskProfile: 'conservative' | 'moderate' | 'aggressive' = 'moderate'
+    riskProfile: RiskProfile = 'moderate',
+    cachedTrendAnalysis?: any[] // Optional cached trend analysis to avoid duplicate calls
   ): Promise<PortfolioAnalysis> {
-    console.log(`🎯 Generating ${numberOfTokens}-token equal allocation portfolio (${riskProfile} risk)...`);
+    console.log(`\n💼 PORTFOLIO GENERATION STARTING`);
+    console.log(`🎯 Target: ${numberOfTokens}-token equal allocation portfolio`);
+    console.log(`⚠️ Risk Profile: ${riskProfile.toUpperCase()}`);
+    console.log(`💰 Allocation per token: ${(100 / numberOfTokens).toFixed(1)}%`);
 
     // Gather all market data
+    console.log(`\n📊 Gathering market data...`);
     const [trendingTokens, marketAnalysis] = await Promise.all([
       this.trendingTokensService.fetchTrendingTokens(),
       this.trendingTokensService.getMarketAnalysis()
     ]);
 
+    console.log(`🪙 Found ${trendingTokens.length} trending tokens to analyze`);
+    console.log(`📈 Market sentiment: ${marketAnalysis.marketSentiment.toUpperCase()}`);
+    console.log(`⚠️ Average market risk: ${marketAnalysis.averageRiskScore.toFixed(1)}/10`);
+
     // Get current market sentiment data
     const sentimentTrend = this.trendAnalyzer.getSentimentTrend();
     const fearGreedTrend = this.trendAnalyzer.getFearGreedTrend();
-    const topTrendingTopics = this.trendAnalyzer.getTopTrendingTopics(10);
-    const stats = this.trendAnalyzer.getSummaryStats();
+    
+    // Use cached trend analysis if provided, otherwise fetch fresh data
+    const topTrendingTopics = cachedTrendAnalysis 
+      ? cachedTrendAnalysis.filter((t: any) => t.trend === 'rising').slice(0, 10)
+      : this.trendAnalyzer.getTopTrendingTopics(10);
+    
+    const stats = cachedTrendAnalysis
+      ? this.trendAnalyzer.getSummaryStatsFromCache(cachedTrendAnalysis)
+      : this.trendAnalyzer.getSummaryStats();
+
+    console.log(`\n🔍 Market Context:`);
+    console.log(`   😊 Sentiment: ${sentimentTrend.current?.percentages.positive?.toFixed(1) || 'N/A'}% positive`);
+    console.log(`   😱 Fear & Greed: ${fearGreedTrend.current?.today.value || 'N/A'} (${fearGreedTrend.current?.today.value_classification || 'N/A'})`);
+    console.log(`   📊 Market Condition: ${stats.marketCondition.toUpperCase()}`);
+    console.log(`   🔥 Trending Topics: ${topTrendingTopics.length} identified`);
 
     // Filter and score tokens based on risk profile
+    console.log(`\n⚖️ SCORING AND FILTERING TOKENS...`);
     const scoredTokens = await this.scoreTokensForPortfolio(trendingTokens, riskProfile);
+    
+    console.log(`✅ Scored ${scoredTokens.length} tokens for ${riskProfile} portfolio`);
+
+    // Show risk profile criteria
+    const riskCriteria = this.getRiskProfileCriteria(riskProfile);
+    console.log(`📋 ${riskProfile.toUpperCase()} CRITERIA:`);
+    console.log(`   ⚠️ Max Risk Score: ${riskCriteria.maxRiskScore}/10`);
+    console.log(`   💰 Min Liquidity: $${(riskCriteria.minLiquidity / 1000).toFixed(0)}K`);
+    console.log(`   📈 Min Confidence: ${riskCriteria.minConfidence}%`);
 
     // Select top tokens
     const selectedTokens = this.selectTopTokens(scoredTokens, numberOfTokens, riskProfile);
+    
+    console.log(`\n🎯 TOKEN SELECTION RESULTS:`);
+    console.log(`   📊 Candidates analyzed: ${scoredTokens.length}`);
+    console.log(`   ✅ Tokens selected: ${selectedTokens.length}/${numberOfTokens}`);
+    
+    if (selectedTokens.length < numberOfTokens) {
+      console.log(`   ⚠️ Could only find ${selectedTokens.length} tokens meeting criteria`);
+    }
+
+    // Show selected tokens summary
+    console.log(`\n🪙 SELECTED TOKENS SUMMARY:`);
+    selectedTokens.forEach((tokenData, index) => {
+      const token = tokenData.token;
+      console.log(`   ${index + 1}. ${token.token.symbol} (${token.token.name})`);
+      console.log(`      📊 Sentiment: ${tokenData.sentimentScore}/100 | Risk: ${token.risk.score}/10`);
+      console.log(`      💰 Liquidity: $${(token.pools[0]?.liquidity.usd / 1000).toFixed(0)}K`);
+      console.log(`      📈 Confidence: ${tokenData.confidence}% | Momentum: ${tokenData.momentumScore}/100`);
+      console.log(`      💭 ${tokenData.reasoning.substring(0, 80)}...`);
+    });
 
     // Create equal allocation portfolio
     const allocation = 100 / numberOfTokens;
@@ -90,7 +142,7 @@ export class PortfolioService {
    */
   private async scoreTokensForPortfolio(
     tokens: TrendingToken[],
-    riskProfile: 'conservative' | 'moderate' | 'aggressive'
+    riskProfile: RiskProfile
   ): Promise<Array<{
     token: TrendingToken;
     sentimentScore: number;
@@ -574,5 +626,30 @@ export class PortfolioService {
     } else {
       return 'adjust';
     }
+  }
+
+  /**
+   * Get risk profile criteria for logging
+   */
+  private getRiskProfileCriteria(riskProfile: string) {
+    let maxRiskScore = 10;
+    let minLiquidity = 50000; // Default for conservative
+    let minConfidence = 30; // Default for conservative
+
+    if (riskProfile === 'moderate') {
+      maxRiskScore = 7;
+      minLiquidity = 100000;
+      minConfidence = 50;
+    } else if (riskProfile === 'aggressive') {
+      maxRiskScore = 4;
+      minLiquidity = 50000;
+      minConfidence = 30;
+    }
+
+    return {
+      maxRiskScore,
+      minLiquidity,
+      minConfidence
+    };
   }
 } 

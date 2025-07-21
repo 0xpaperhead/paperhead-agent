@@ -58,20 +58,55 @@ export class TrendAnalyzer {
    */
   analyzeTrends(): TrendAnalysis[] {
     const trends: TrendAnalysis[] = [];
+    
+    console.log(`\n🔍 TREND ANALYSIS STARTING`);
+    console.log(`📊 Total topics in history: ${this.topicHistory.size}`);
+    console.log(`📈 Sentiment history entries: ${this.sentimentHistory.length}`);
+    console.log(`😱 Fear & Greed history entries: ${this.fearGreedHistory.length}`);
+
+    let topicsWithSufficientHistory = 0;
+    let topicsAnalyzed = 0;
 
     this.topicHistory.forEach((history, topic) => {
+      console.log(`   📂 ${topic}: ${history.length} data points`);
+      
       if (history.length >= 2) {
+        topicsWithSufficientHistory++;
         const trend = this.calculateTrendForTopic(topic, history);
         if (trend) {
           trends.push(trend);
+          topicsAnalyzed++;
+          console.log(`   ✅ ${topic}: ${trend.trend} (${trend.trendStrength.toFixed(1)}%)`);
+        } else {
+          console.log(`   ⚠️ ${topic}: Could not calculate trend`);
         }
+      } else {
+        console.log(`   ❌ ${topic}: Insufficient history (need 2+ points)`);
       }
     });
 
     // Sort by trend strength (absolute value)
     trends.sort((a, b) => Math.abs(b.trendStrength) - Math.abs(a.trendStrength));
 
-    console.log(`🔍 Analyzed trends for ${trends.length} topics`);
+    console.log(`\n📊 TREND ANALYSIS SUMMARY:`);
+    console.log(`   📈 Topics with sufficient history: ${topicsWithSufficientHistory}`);
+    console.log(`   🔍 Topics successfully analyzed: ${topicsAnalyzed}`);
+    console.log(`   📉 Topics with trends: ${trends.length}`);
+    
+    if (trends.length > 0) {
+      console.log(`\n🚀 TOP TRENDS:`);
+      trends.slice(0, 5).forEach((trend, index) => {
+        const emoji = trend.trend === 'rising' ? '📈' : trend.trend === 'falling' ? '📉' : '➡️';
+        console.log(`   ${index + 1}. ${emoji} ${trend.topic}: ${trend.trendStrength.toFixed(1)}% (${trend.currentScore} → ${trend.previousScore})`);
+      });
+    } else {
+      console.log(`   💡 No trends found. This could be because:`);
+      console.log(`      • Topics need at least 2 data points for trend analysis`);
+      console.log(`      • All topics have insufficient historical data`);
+      console.log(`      • This is the first analysis cycle`);
+    }
+
+    console.log(`🔍 Trend analysis completed: ${trends.length} trends identified`);
     return trends;
   }
 
@@ -280,7 +315,59 @@ export class TrendAnalyzer {
   }
 
   /**
-   * Enhanced summary stats including Fear and Greed
+   * Get overall market statistics from cached trend analysis
+   */
+  getSummaryStatsFromCache(trendAnalysis: TrendAnalysis[]): {
+    totalTopicsTracked: number;
+    risingTopics: number;
+    fallingTopics: number;
+    stableTopics: number;
+    avgPopularityScore: number;
+    sentimentTrend: string;
+    fearGreedStatus: string;
+    fearGreedTrend: string;
+    marketCondition: 'bullish' | 'bearish' | 'neutral';
+  } {
+    // Use provided trend analysis instead of calling analyzeTrends again
+    const rising = trendAnalysis.filter(t => t.trend === 'rising').length;
+    const falling = trendAnalysis.filter(t => t.trend === 'falling').length;
+    const stable = trendAnalysis.filter(t => t.trend === 'stable').length;
+    
+    const sentimentTrend = this.getSentimentTrend();
+    const avgPopularity = trendAnalysis.length > 0 
+      ? trendAnalysis.reduce((sum, t) => sum + t.currentScore, 0) / trendAnalysis.length 
+      : 0;
+
+    // Fear and Greed stats
+    const fearGreedTrend = this.getFearGreedTrend();
+    const fearGreedStatus = fearGreedTrend.current 
+      ? `${fearGreedTrend.current.today.value} (${fearGreedTrend.current.today.value_classification})`
+      : 'N/A';
+
+    // Determine overall market condition
+    let marketCondition: 'bullish' | 'bearish' | 'neutral' = 'neutral';
+    
+    if (rising > falling * 1.5 && sentimentTrend.trend === 'improving') {
+      marketCondition = 'bullish';
+    } else if (falling > rising * 1.5 && sentimentTrend.trend === 'declining') {
+      marketCondition = 'bearish';
+    }
+
+    return {
+      totalTopicsTracked: trendAnalysis.length,
+      risingTopics: rising,
+      fallingTopics: falling,
+      stableTopics: stable,
+      avgPopularityScore: Math.round(avgPopularity * 100) / 100,
+      sentimentTrend: sentimentTrend.trend,
+      fearGreedStatus,
+      fearGreedTrend: fearGreedTrend.trend,
+      marketCondition
+    };
+  }
+
+  /**
+   * Get overall market statistics (calls analyzeTrends internally)
    */
   getSummaryStats(): {
     totalTopicsTracked: number;
@@ -293,59 +380,8 @@ export class TrendAnalyzer {
     fearGreedTrend: string;
     marketCondition: 'bullish' | 'bearish' | 'neutral';
   } {
-    // Existing stats
+    // Call analyzeTrends and then use the cache method
     const trends = this.analyzeTrends();
-    const rising = trends.filter(t => t.trend === 'rising').length;
-    const falling = trends.filter(t => t.trend === 'falling').length;
-    const stable = trends.filter(t => t.trend === 'stable').length;
-    
-    const sentimentTrend = this.getSentimentTrend();
-    const avgPopularity = trends.length > 0 
-      ? trends.reduce((sum, t) => sum + t.currentScore, 0) / trends.length 
-      : 0;
-
-    // Fear and Greed stats
-    const fearGreedTrend = this.getFearGreedTrend();
-    const fearGreedStatus = fearGreedTrend.current 
-      ? `${fearGreedTrend.current.today.value} (${fearGreedTrend.current.today.value_classification})`
-      : 'N/A';
-
-    // Determine overall market condition
-    let marketCondition: 'bullish' | 'bearish' | 'neutral' = 'neutral';
-    
-    if (fearGreedTrend.current) {
-      const fearGreedValue = parseInt(fearGreedTrend.current.today.value);
-      const sentimentPositive = sentimentTrend.current?.percentages.positive || 50;
-      
-      // Combine Fear & Greed with sentiment and trend analysis
-      const bullishSignals = [
-        fearGreedValue > 60, // Greed territory
-        sentimentPositive > 55, // Positive sentiment
-        rising > falling, // More rising than falling topics
-        fearGreedTrend.trend === 'improving'
-      ].filter(Boolean).length;
-
-      const bearishSignals = [
-        fearGreedValue < 40, // Fear territory
-        sentimentPositive < 45, // Negative sentiment
-        falling > rising, // More falling than rising topics
-        fearGreedTrend.trend === 'declining'
-      ].filter(Boolean).length;
-
-      if (bullishSignals >= 3) marketCondition = 'bullish';
-      else if (bearishSignals >= 3) marketCondition = 'bearish';
-    }
-
-    return {
-      totalTopicsTracked: this.topicHistory.size,
-      risingTopics: rising,
-      fallingTopics: falling,
-      stableTopics: stable,
-      avgPopularityScore: Math.round(avgPopularity * 100) / 100,
-      sentimentTrend: sentimentTrend.trend,
-      fearGreedStatus,
-      fearGreedTrend: fearGreedTrend.trend,
-      marketCondition
-    };
+    return this.getSummaryStatsFromCache(trends);
   }
 } 

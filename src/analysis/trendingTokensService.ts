@@ -1,4 +1,4 @@
-import { Config } from "../libs/config.js";
+import { Config } from "../config/index.js";
 import { TrendingToken, TrendingTokensResponse, PriceEvents } from "../types/index.js";
 
 export class TrendingTokensService {
@@ -20,10 +20,14 @@ export class TrendingTokensService {
       // Return cached data if still valid
       if (this.cache && Date.now() < this.cacheExpiry) {
         console.log("📦 Using cached trending tokens data");
+        console.log(`   ⏰ Cache expires in ${Math.round((this.cacheExpiry - Date.now()) / 60000)} minutes`);
+        console.log(`   🪙 Cached tokens: ${this.cache.tokens.length}`);
         return this.cache.tokens;
       }
 
       console.log("🚀 Fetching trending tokens from Solana Tracker...");
+      console.log(`   🌐 API Endpoint: ${this.baseUrl}/tokens/trending`);
+      console.log(`   🔑 API Key: ${this.apiKey ? 'Configured' : 'Missing'}`);
 
       const response = await fetch(`${this.baseUrl}/tokens/trending`, {
         method: 'GET',
@@ -47,6 +51,15 @@ export class TrendingTokensService {
       this.cacheExpiry = Date.now() + this.cacheTimeout;
 
       console.log(`✅ Fetched ${data.length} trending tokens`);
+      console.log(`   💾 Data cached for ${this.cacheTimeout / 60000} minutes`);
+      
+      // Quick analysis summary
+      const validTokens = data.filter(t => !t.risk.rugged && t.pools.length > 0);
+      const averageRisk = data.reduce((sum, t) => sum + t.risk.score, 0) / data.length;
+      const highRisk = data.filter(t => t.risk.score > 7).length;
+      
+      console.log(`   📊 Quick Analysis: ${validTokens.length} valid | Avg Risk: ${averageRisk.toFixed(1)}/10 | High Risk: ${highRisk}`);
+      
       return data;
 
     } catch (error) {
@@ -54,8 +67,10 @@ export class TrendingTokensService {
       // Return cached data if available, even if expired
       if (this.cache) {
         console.log("⚠️ Returning expired cached data due to API error");
+        console.log(`   📅 Data age: ${Math.round((Date.now() - this.cache.fetchedAt) / 60000)} minutes old`);
         return this.cache.tokens;
       }
+      console.log("💔 No cached data available - returning empty array");
       return [];
     }
   }

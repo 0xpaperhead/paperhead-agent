@@ -1,6 +1,6 @@
 /* eslint-disable no-console */
 import { createServer, ServerResponse } from 'http';
-import { Config } from '../libs/config.js';
+import { Config } from '../config/index.js';
 import { authenticate, sendJsonResponse } from './helpers.js';
 import { AuthenticatedRequest } from '../types/server.js';
 import { handlePing } from '../handlers/handlePing.js';

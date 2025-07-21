@@ -1,17 +1,17 @@
-import { AgenticSystem } from './agenticSystem.js';
+import { Agent } from '../core/Agent.js';
 
 export class StatusApi {
-  private agenticSystem: AgenticSystem;
+  private agent: Agent;
 
-  constructor(agenticSystem: AgenticSystem) {
-    this.agenticSystem = agenticSystem;
+  constructor(agent: Agent) {
+    this.agent = agent;
   }
 
   /**
    * Get system status and health information
    */
   getStatus() {
-    const state = this.agenticSystem.getState();
+    const state = this.agent.getState();
     const now = Date.now();
     
     return {
@@ -39,7 +39,8 @@ export class StatusApi {
         trend: t.trend,
         strength: t.trendStrength,
         currentScore: t.currentScore
-      }))
+      })),
+      currentPortfolio: this.agent.getCurrentPortfolio(),
     };
   }
 
@@ -47,7 +48,7 @@ export class StatusApi {
    * Get detailed analytics
    */
   getAnalytics() {
-    const state = this.agenticSystem.getState();
+    const state = this.agent.getState();
     
     return {
       topics: {
@@ -78,7 +79,8 @@ export class StatusApi {
           confidence: state.lastDecision.confidence,
           timeSince: Date.now() - state.lastDecision.timestamp
         } : null
-      }
+      },
+      portfolio: this.agent.getCurrentPortfolio()
     };
   }
 } 

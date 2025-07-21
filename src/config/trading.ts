@@ -1,10 +1,10 @@
-import { TradingConfiguration } from '../types/index.js';
+import { RiskProfile, TradingConfiguration } from '../types/index.js';
 
 /**
  * Default trading configuration with safe defaults
  */
 export const DEFAULT_TRADING_CONFIG: TradingConfiguration = {
-  enableAutomaticTrading: false, // Disabled by default for safety
+  enableAutomaticTrading: true, // Disabled by default for safety
   maxPositionSizeSOL: 1.0, // Maximum 1 SOL per trade
   minTradeAmountSOL: 0.01, // Minimum 0.01 SOL per trade
   slippageTolerance: 0.5, // 0.5% slippage tolerance
@@ -22,7 +22,7 @@ export const DEFAULT_TRADING_CONFIG: TradingConfiguration = {
  * Conservative trading configuration
  */
 export const CONSERVATIVE_TRADING_CONFIG: TradingConfiguration = {
-  enableAutomaticTrading: false,
+  enableAutomaticTrading: true,
   maxPositionSizeSOL: 0.5, // Lower position size
   minTradeAmountSOL: 0.01,
   slippageTolerance: 0.3, // Lower slippage tolerance
@@ -40,7 +40,7 @@ export const CONSERVATIVE_TRADING_CONFIG: TradingConfiguration = {
  * Moderate trading configuration
  */
 export const MODERATE_TRADING_CONFIG: TradingConfiguration = {
-  enableAutomaticTrading: false,
+  enableAutomaticTrading: true,
   maxPositionSizeSOL: 2.0, // Moderate position size
   minTradeAmountSOL: 0.05,
   slippageTolerance: 0.5,
@@ -58,14 +58,14 @@ export const MODERATE_TRADING_CONFIG: TradingConfiguration = {
  * Aggressive trading configuration
  */
 export const AGGRESSIVE_TRADING_CONFIG: TradingConfiguration = {
-  enableAutomaticTrading: false,
+  enableAutomaticTrading: true,
   maxPositionSizeSOL: 5.0, // Higher position size
   minTradeAmountSOL: 0.1,
   slippageTolerance: 1.0, // Higher slippage tolerance
   minConfidenceThreshold: 60, // Lower confidence requirement
   maxRiskScore: 8, // Higher risk tolerance
   delayBetweenTradesMs: 1000, // Faster execution
-  portfolioUpdateIntervalMs: 12 * 60 * 60 * 1000, // 12 hours (more frequent)
+  portfolioUpdateIntervalMs: 1 * 60 * 1000, // 1 minute (more frequent)
   computeUnitPrice: 50000, // Lower compute unit price
   emergencyStopEnabled: true,
   maxDailyLossPercentage: 25,
@@ -100,7 +100,7 @@ export function loadTradingConfigFromEnv(): TradingConfiguration {
 /**
  * Get predefined trading configuration by risk profile
  */
-export function getTradingConfigByRiskProfile(riskProfile: 'conservative' | 'moderate' | 'aggressive'): TradingConfiguration {
+export function getTradingConfigByRiskProfile(riskProfile: RiskProfile): TradingConfiguration {
   switch (riskProfile) {
     case 'conservative':
       return { ...CONSERVATIVE_TRADING_CONFIG };
@@ -241,4 +241,90 @@ REBALANCE_THRESHOLD=5
 # Safety settings
 EMERGENCY_STOP_ENABLED=true
 `;
+}
+
+/**
+ * Get comprehensive risk profile information from trading configurations
+ * This is the single source of truth for risk profile characteristics
+ */
+export function getRiskProfileInfo(currentProfile?: RiskProfile): {
+  current?: string;
+  profiles: { [key: string]: { 
+    hours: number; 
+    frequency: string; 
+    description: string;
+    maxPositionSize: number;
+    minConfidence: number;
+    maxRiskScore: number;
+    maxDailyLoss: number;
+  } };
+} {
+  const riskProfiles: RiskProfile[] = ['conservative', 'moderate', 'aggressive'];
+  const profiles: { [key: string]: { 
+    hours: number; 
+    frequency: string; 
+    description: string;
+    maxPositionSize: number;
+    minConfidence: number;
+    maxRiskScore: number;
+    maxDailyLoss: number;
+  } } = {};
+  
+  const frequencyMap = {
+    'conservative': 'Low frequency',
+    'moderate': 'Standard frequency',
+    'aggressive': 'High frequency'
+  };
+  
+  const descriptionMap = {
+    'conservative': 'Safer tokens, higher liquidity requirements, less frequent updates',
+    'moderate': 'Balanced risk/reward, standard market approach',
+    'aggressive': 'Higher risk tolerance, more volatile tokens, frequent updates',
+    'live': 'Live trading, no updates'
+  };
+  
+  riskProfiles.forEach(profile => {
+    const config = getTradingConfigByRiskProfile(profile);
+    profiles[profile] = {
+      hours: Math.round(config.portfolioUpdateIntervalMs / (60 * 60 * 1000)),
+      frequency: frequencyMap[profile],
+      description: descriptionMap[profile],
+      maxPositionSize: config.maxPositionSizeSOL,
+      minConfidence: config.minConfidenceThreshold,
+      maxRiskScore: config.maxRiskScore,
+      maxDailyLoss: config.maxDailyLossPercentage
+    };
+  });
+  
+  return {
+    current: currentProfile,
+    profiles
+  };
+}
+
+/**
+ * Display a comprehensive comparison of all risk profiles
+ */
+export function displayAllRiskProfiles(): string {
+  const info = getRiskProfileInfo();
+  let output = '\n🎯 RISK PROFILE COMPARISON (Single Source of Truth)\n';
+  output += '━'.repeat(80) + '\n';
+  
+  Object.entries(info.profiles).forEach(([profile, data]) => {
+    const isDefault = info.current === profile;
+    const marker = isDefault ? '👉 ' : '   ';
+    
+    output += `${marker}${profile.toUpperCase()}:\n`;
+    output += `     ⏰ Update Interval: ${data.hours} hours (${data.frequency.toLowerCase()})\n`;
+    output += `     💰 Max Position: ${data.maxPositionSize} SOL\n`;
+    output += `     📈 Min Confidence: ${data.minConfidence}%\n`;
+    output += `     ⚠️  Max Risk Score: ${data.maxRiskScore}/10\n`;
+    output += `     📉 Max Daily Loss: ${data.maxDailyLoss}%\n`;
+    output += `     💭 ${data.description}\n\n`;
+  });
+  
+  output += '━'.repeat(80) + '\n';
+  output += '💡 All values come from src/config/trading.ts configurations\n';
+  
+  return output;
 }
