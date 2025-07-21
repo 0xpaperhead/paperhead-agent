@@ -17,6 +17,7 @@
     "test:watch": "cross-env NODE_ENV=test npm run test -- --watch",
     "test:coverage": "cross-env NODE_ENV=test npm run test -- --coverage",
     "system-test": "cross-env NODE_ENV=test npx ts-node src/scripts/fullSystemTest.ts",
+    "integration:test": "node --experimental-specifier-resolution=node --loader ts-node/esm",
 
     "script:test-purchase-token": "cross-env NODE_ENV=development nodemon --ext js,ts,json,env --exec \"node --experimental-specifier-resolution=node --loader ts-node/esm src/test-purchase-token.ts\"",
     "script:test-portfolio": "cross-env NODE_ENV=development nodemon --ext js,ts,json,env --exec \"node --experimental-specifier-resolution=node --loader ts-node/esm src/test-portfolio.ts\"", 

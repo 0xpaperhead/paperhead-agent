@@ -16,13 +16,13 @@ export class NewsService {
   /**
    * Fetch news articles for a specific topic
    */
-  async fetchTopicNews(topic: string, limit: number = 100): Promise<NewsArticle[]> {
+  private async fetchTopicNews(topic: string, limit: number = 100): Promise<NewsArticle[]> {
     try {
       // Topics are already single words, use directly
       const url = `${this.baseUrl}/articles/search?title_keywords=${encodeURIComponent(topic)}&page=1&limit=${limit}&time_frame=24h&format=json`;
-      
+
       console.log(`📰 Fetching news for topic: "${topic}"`);
-      
+
       const response = await fetch(url, {
         method: 'GET',
         headers: this.headers
@@ -32,7 +32,7 @@ export class NewsService {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      const data = await response.json();      
+      const data = await response.json();
       // Use the API response directly since ArticlesResponse = NewsArticle
       const articles: NewsArticle[] = data || [];
 
@@ -48,9 +48,9 @@ export class NewsService {
   /**
    * Batch fetch news articles for multiple topics in parallel
    */
-  async batchFetchTopicNews(topics: string[], limit: number = 100): Promise<Map<string, NewsArticle[]>> {
+  private async batchFetchTopicNews(topics: string[], limit: number = 100): Promise<Map<string, NewsArticle[]>> {
     console.log(`🚀 Parallel fetching news for ${topics.length} topics...`);
-    
+
     const promises = topics.map(async (topic) => {
       const articles = await this.fetchTopicNews(topic, limit);
       return { topic, articles };
@@ -75,12 +75,12 @@ export class NewsService {
   /**
    * Fetch overall crypto sentiment data
    */
-  async fetchSentiment(interval: '24h' | '48h' = '24h'): Promise<SentimentData | null> {
+  private async fetchSentiment(interval: '24h' | '48h' = '24h'): Promise<SentimentData | null> {
     try {
       const url = `${this.baseUrl}/sentiment?interval=${interval}`;
-      
+
       console.log(`📊 Fetching ${interval} sentiment data`);
-      
+
       const response = await fetch(url, {
         method: 'GET',
         headers: this.headers
@@ -91,7 +91,7 @@ export class NewsService {
       }
 
       const data = await response.json();
-      
+
       console.log(`✅ Sentiment data received for ${interval}`);
       console.log('📈 Sentiment details:', {
         interval: data.interval,
@@ -118,9 +118,9 @@ export class NewsService {
   /**
    * Batch fetch sentiment data for multiple intervals in parallel
    */
-  async batchFetchSentiment(intervals: ('24h' | '48h')[]): Promise<Map<string, SentimentData | null>> {
+  private async batchFetchSentiment(intervals: ('24h' | '48h')[]): Promise<Map<string, SentimentData | null>> {
     console.log(`🚀 Parallel fetching sentiment data for ${intervals.length} intervals...`);
-    
+
     const promises = intervals.map(async (interval) => {
       const sentiment = await this.fetchSentiment(interval);
       return { interval, sentiment };
@@ -143,32 +143,17 @@ export class NewsService {
   }
 
   /**
-   * Calculate topic popularity score based on article count
-   */
-  async calculateTopicScore(topic: string): Promise<TopicScore> {
-    const articles = await this.fetchTopicNews(topic);
-    const popularityScore = Math.min(articles.length, 100); // Cap at 100
-    
-    return {
-      topic,
-      popularityScore,
-      articles,
-      timestamp: Date.now()
-    };
-  }
-
-  /**
    * Batch fetch scores for multiple topics in parallel (enhanced)
    */
-  async batchCalculateTopicScores(topics: string[]): Promise<TopicScore[]> {
+  private async batchCalculateTopicScores(topics: string[]): Promise<TopicScore[]> {
     console.log(`🔄 Calculating scores for ${topics.length} topics in parallel...`);
     console.log('📈 Topics to analyze:', topics);
-    
+
     // Use the batch fetch method for better performance
     const articlesMap = await this.batchFetchTopicNews(topics);
-    
+
     const topicScores: TopicScore[] = [];
-    
+
     articlesMap.forEach((articles, topic) => {
       const popularityScore = Math.min(articles.length, 100); // Cap at 100
       topicScores.push({
@@ -181,7 +166,7 @@ export class NewsService {
 
     // Sort by popularity score descending
     topicScores.sort((a, b) => b.popularityScore - a.popularityScore);
-    
+
     console.log(`✅ Successfully calculated ${topicScores.length} topic scores`);
     return topicScores;
   }
@@ -189,12 +174,12 @@ export class NewsService {
   /**
    * Fetch Fear and Greed Index data (today and yesterday)
    */
-  async fetchFearGreedIndex(): Promise<FearGreedResponse | null> {
+  private async fetchFearGreedIndex(): Promise<FearGreedResponse | null> {
     try {
       const url = `${this.fearGreedUrl}/index?limit=2`;
-      
+
       console.log(`😱 Fetching Fear and Greed Index data...`);
-      
+
       const response = await fetch(url, {
         method: 'GET',
         headers: this.fearGreedHeaders
@@ -205,7 +190,7 @@ export class NewsService {
       }
 
       const data = await response.json();
-      
+
       console.log(`✅ Fear and Greed Index data received`);
       return data as FearGreedResponse;
 
@@ -216,12 +201,24 @@ export class NewsService {
   }
 
   /**
+   * Get detailed Fear and Greed classification based on value
+   */
+  private getFearGreedClassification(value: number): string {
+    if (value <= 24) return "Extreme Fear";
+    if (value <= 49) return "Fear";
+    if (value === 50) return "Neutral";
+    if (value <= 74) return "Greed";
+    return "Extreme Greed";
+  }
+
+
+  /**
    * Analyze Fear and Greed Index trend (today vs yesterday)
    */
-  analyzeFearGreedTrend(fearGreedData: FearGreedResponse): FearGreedAnalysis | null {
+  private analyzeFearGreedTrend(fearGreedData: FearGreedResponse): FearGreedAnalysis | null {
     try {
       const timestamps = Object.keys(fearGreedData).sort((a, b) => parseInt(b) - parseInt(a));
-      
+
       if (timestamps.length < 2) {
         console.error("❌ Insufficient Fear and Greed data for trend analysis");
         return null;
@@ -229,14 +226,14 @@ export class NewsService {
 
       const todayTimestamp = timestamps[0];
       const yesterdayTimestamp = timestamps[1];
-      
+
       const today = { ...fearGreedData[todayTimestamp], timestamp: todayTimestamp };
       const yesterday = { ...fearGreedData[yesterdayTimestamp], timestamp: yesterdayTimestamp };
-      
+
       const todayValue = parseInt(today.value);
       const yesterdayValue = parseInt(yesterday.value);
       const change = todayValue - yesterdayValue;
-      
+
       let trend: 'increasing' | 'decreasing' | 'stable';
       if (Math.abs(change) <= 2) {
         trend = 'stable';
@@ -270,16 +267,6 @@ export class NewsService {
     }
   }
 
-  /**
-   * Get detailed Fear and Greed classification based on value
-   */
-  private getFearGreedClassification(value: number): string {
-    if (value <= 24) return "Extreme Fear";
-    if (value <= 49) return "Fear";
-    if (value === 50) return "Neutral";
-    if (value <= 74) return "Greed";
-    return "Extreme Greed";
-  }
 
   /**
    * Comprehensive parallel data fetch - gets all data needed for analysis including Fear & Greed
@@ -291,7 +278,7 @@ export class NewsService {
   }> {
     console.log(`🚀 Starting comprehensive parallel data fetch...`);
     console.log(`📊 Fetching data for ${topics.length} topics, ${sentimentIntervals.length} sentiment intervals, and Fear & Greed Index`);
-    
+
     // Execute all fetches in parallel
     const [topicScores, sentimentData, fearGreedData] = await Promise.all([
       this.batchCalculateTopicScores(topics),
@@ -303,8 +290,8 @@ export class NewsService {
     const fearGreedAnalysis = fearGreedData ? this.analyzeFearGreedTrend(fearGreedData) : null;
 
     console.log(`✅ Comprehensive parallel fetch completed!`);
-    console.log(`📈 Retrieved ${topicScores.length} topic scores, ${sentimentData.size} sentiment datasets, and Fear & Greed analysis`);
-    
+    console.log(`📈 Retrieved ${topicScores.length} topic scores, ${sentimentData.size} sentiment datasets, and Fear & Greed analysis of ${fearGreedAnalysis}`);
+
     return {
       topicScores,
       sentimentData,

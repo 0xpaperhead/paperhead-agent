@@ -34,7 +34,7 @@ export class MarketAnalyzer {
   }
 
   public async performFullAnalysis(): Promise<void> {
-    const topicsToAnalyze = this.getTopicsForCurrentCycle();
+    const topicsToAnalyze = this.topicGenerator.getTopicsForCurrentCycle();
     console.log(`🎯 Analyzing ${topicsToAnalyze.length} topics this cycle`);
 
     const [{ topicScores, sentimentData, fearGreedAnalysis }] = await Promise.all([
@@ -105,12 +105,6 @@ export class MarketAnalyzer {
 
 
 
-
-  private getTopicsForCurrentCycle(): string[] {
-    const highPriority = this.topicGenerator.getHighPriorityTopics();
-    const randomTopics = this.topicGenerator.getTopicsForAnalysis(15 - highPriority.length);
-    return [...new Set([...highPriority, ...randomTopics])].slice(0, 15);
-  }
 
   private printAnalysisSummary(tokenAnalysis: any): void {
     console.log("\n📊 COMPREHENSIVE ANALYSIS SUMMARY");

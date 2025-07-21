@@ -338,4 +338,13 @@ Extract single-word Solana keywords from these headlines.`;
       )
     };
   }
+
+  /**
+   * Get topics for the current analysis cycle
+   */
+  public getTopicsForCurrentCycle(): string[] {
+    const highPriority = this.getHighPriorityTopics();
+    const randomTopics = this.getTopicsForAnalysis(15 - highPriority.length);
+    return [...new Set([...highPriority, ...randomTopics])].slice(0, 15);
+  }
 } 
