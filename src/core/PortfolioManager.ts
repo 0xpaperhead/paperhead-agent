@@ -47,6 +47,10 @@ export class PortfolioManager {
     this.lastPortfolioUpdate = timestamp;
   }
 
+  public getNextUpdateTime(): number {
+    return this.lastPortfolioUpdate + this.tradingConfig.portfolioUpdateIntervalMs;
+  }
+
   public forcePortfolioRebalancing(): void {
     const oldTimestamp = Date.now() - (this.tradingConfig.portfolioUpdateIntervalMs + 1000);
     this.lastPortfolioUpdate = oldTimestamp;
@@ -255,12 +259,14 @@ export class PortfolioManager {
   public async performPortfolioRebalancing(): Promise<void> {
     try {
       console.log('\n💰 AUTOMATIC PORTFOLIO REBALANCING');
+      console.log("=".repeat(60));
       
       // Get cached trend analysis to avoid duplicate calls
       const cachedTrendAnalysis = this.marketAnalyzer.getAgentState().trendAnalysis;
       const riskProfile = this.marketAnalyzer.determineRiskProfile();
       this.updateTradingConfig(riskProfile);
       
+      console.log(`🎯 Risk Profile: ${riskProfile.toUpperCase()}`);
       const newPortfolio = await this.portfolioService.generateEqualAllocationPortfolio(10, riskProfile, cachedTrendAnalysis);
       
       // Compare current vs new portfolio
@@ -270,53 +276,17 @@ export class PortfolioManager {
         console.log("📝 No existing portfolio to compare - this is the initial portfolio generation");
       }
 
-      // Reconcile wallet with new desired portfolio
+      // Reconcile wallet with new desired portfolio (this handles all trading)
       await this.reconcileWalletWithPortfolio(newPortfolio);
       
-      // Extract token information for trading
-      const currentTokens = this.currentPortfolio ? this.currentPortfolio.portfolio.tokens.map(t => ({ mint: t.mint, symbol: t.symbol, name: t.name })) : [];
-      const newTokens = newPortfolio.portfolio.tokens.map(t => ({ mint: t.mint, symbol: t.symbol, name: t.name }));
-      
-      const currentMints = currentTokens.map(t => t.mint);
-      const newMints = newTokens.map(t => t.mint);
-      
-      const tokensToSell = currentTokens.filter(token => !newMints.includes(token.mint));
-      
-      if (tokensToSell.length > 0) {
-        for (const tokenInfo of tokensToSell) {
-          if (!isValidSolanaAddress(tokenInfo.mint)) continue;
-          const sellDecision: AgentDecision = {
-            action: 'sell',
-            token: tokenInfo.mint,
-            amount: 100,
-            confidence: 95,
-            reasoning: `Portfolio rebalancing: Removing ${tokenInfo.symbol}`,
-            timestamp: Date.now()
-          };
-          await this.tradeExecutor.executeDecision(sellDecision);
-        }
-      }
-      
-      const availableForTrading = (await this.solanaService.getWalletBalance()) * 0.99;
-      
-      for (const token of newPortfolio.portfolio.tokens) {
-        if (!isValidSolanaAddress(token.mint) || token.confidence < 60) continue;
-        
-        const buyDecision: AgentDecision = {
-          action: 'buy',
-          token: token.mint,
-          amount: Math.floor(token.allocation),
-          confidence: token.confidence,
-          reasoning: `Portfolio rebalancing: ${Math.floor(token.allocation)}% allocation for ${token.symbol}`,
-          timestamp: Date.now()
-        };
-        await this.tradeExecutor.executeDecision(buyDecision);
-      }
-      
+      // Update current portfolio and timestamp
       this.currentPortfolio = newPortfolio;
       this.lastPortfolioUpdate = Date.now();
       
-      await this.verifyAndRetryPortfolio(newPortfolio);
+      // Verify the portfolio was successfully created
+      await this.verifyPortfolio(newPortfolio);
+      
+      // Print summary
       this.printPortfolioSummary(newPortfolio);
       
     } catch (error) {
@@ -324,42 +294,35 @@ export class PortfolioManager {
     }
   }
 
-  private async verifyAndRetryPortfolio(targetPortfolio: PortfolioAnalysis): Promise<void> {
+  private async verifyPortfolio(targetPortfolio: PortfolioAnalysis): Promise<void> {
     try {
-      console.log('\n🔍 PORTFOLIO VERIFICATION & RETRY PHASE');
-      const failedPurchases: Array<{token: any, reason: string}> = [];
+      console.log('\n🔍 PORTFOLIO VERIFICATION');
+      console.log("-".repeat(50));
+      
+      let successCount = 0;
+      let failedTokens: string[] = [];
       
       for (const token of targetPortfolio.portfolio.tokens) {
         if (!isValidSolanaAddress(token.mint)) {
-          failedPurchases.push({token, reason: 'Invalid contract address'});
+          failedTokens.push(`${token.symbol} - Invalid address`);
           continue;
         }
         const tokenBalance = await this.solanaService.getTokenBalance(token.mint);
-        if (tokenBalance === 0) {
-          failedPurchases.push({token, reason: 'Purchase failed - zero balance'});
+        if (tokenBalance > 0) {
+          successCount++;
+        } else {
+          failedTokens.push(`${token.symbol} - No balance`);
         }
       }
-
-      if (failedPurchases.length > 0) {
-        console.log('\n🔄 RETRYING FAILED PURCHASES:');
-        const availableForRetry = (await this.solanaService.getWalletBalance()) * 0.99;
-        if (availableForRetry > 0.001) {
-          for (const {token, reason} of failedPurchases) {
-            if (reason.includes('Invalid contract address')) continue;
-
-            const retryPercentage = Math.floor(Math.min(token.allocation, 5));
-            const retryDecision: AgentDecision = {
-              action: 'buy',
-              token: token.mint,
-              amount: retryPercentage,
-              confidence: 90,
-              reasoning: `Portfolio verification retry for ${token.symbol}`,
-              timestamp: Date.now()
-            };
-            await this.tradeExecutor.executeDecision(retryDecision);
-          }
-        }
+      
+      console.log(`✅ Successfully acquired: ${successCount}/${targetPortfolio.portfolio.tokens.length} tokens`);
+      
+      if (failedTokens.length > 0) {
+        console.log(`⚠️ Failed tokens:`);
+        failedTokens.forEach(token => console.log(`   - ${token}`));
       }
+      
+      console.log("-".repeat(50));
     } catch (error) {
       console.error('❌ Error in portfolio verification:', error);
     }

@@ -65,7 +65,7 @@ export const AGGRESSIVE_TRADING_CONFIG: TradingConfiguration = {
   minConfidenceThreshold: 60, // Lower confidence requirement
   maxRiskScore: 8, // Higher risk tolerance
   delayBetweenTradesMs: 1000, // Faster execution
-  portfolioUpdateIntervalMs: 1 * 60 * 1000, // 1 minute (more frequent)
+  portfolioUpdateIntervalMs: 6 * 60 * 60 * 1000, // 6 hours (frequent but reasonable)
   computeUnitPrice: 50000, // Lower compute unit price
   emergencyStopEnabled: true,
   maxDailyLossPercentage: 25,
@@ -277,9 +277,9 @@ export function getRiskProfileInfo(currentProfile?: RiskProfile): {
   };
   
   const descriptionMap = {
-    'conservative': 'Safer tokens, higher liquidity requirements, less frequent updates',
-    'moderate': 'Balanced risk/reward, standard market approach',
-    'aggressive': 'Higher risk tolerance, more volatile tokens, frequent updates',
+    'conservative': 'Safer tokens, higher liquidity requirements, updates every 48h',
+    'moderate': 'Balanced risk/reward, standard approach, updates every 24h',
+    'aggressive': 'Higher risk tolerance, volatile tokens, updates every 6h',
     'live': 'Live trading, no updates'
   };
   

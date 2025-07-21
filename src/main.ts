@@ -41,9 +41,8 @@ async function startAgent() {
             process.exit(1);
         }
 
-        // You can now specify the risk profile here!
-        // Options: 'conservative', 'moderate', 'aggressive'
-        const agent = new Agent('aggressive'); // Change this to set your preferred risk level
+        // Create agent with risk profile from config (can be overridden by passing parameter)
+        const agent = new Agent();
         
         // Initialize the system
         await agent.initialize();

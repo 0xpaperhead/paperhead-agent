@@ -43,8 +43,8 @@ export class Agent {
   };
 
   constructor(riskProfile?: RiskProfile) {
-    // Use provided risk profile, or fall back to config, or default to 'moderate'
-    this.defaultRiskProfile = riskProfile || Config.agent.risk_profile || 'moderate';
+    // Use provided risk profile, or fall back to config
+    this.defaultRiskProfile = riskProfile || Config.agent.risk_profile;
     this.solanaService = new SolanaService();
     
     // Instantiate all services once
@@ -163,32 +163,48 @@ export class Agent {
   }
 
   private async runMainLoop(): Promise<void> {
-    let isFirstCycle = true;
+    let cycleCount = 0;
     
     while (this.state.isRunning) {
       try {
-        // Skip analysis on first cycle since initialization already did it
-        if (isFirstCycle) {
-          console.log("\n🔄 Using initial analysis data from startup...");
-          isFirstCycle = false;
-        } else {
-          console.log("\n🔄 Starting new analysis cycle...");
-          await this.marketAnalyzer.performFullAnalysis();
-        }
+        cycleCount++;
+        console.log(`\n🔄 ANALYSIS CYCLE #${cycleCount}`);
+        console.log("=".repeat(60));
+        console.log(`⏰ Time: ${new Date().toLocaleString()}`);
         
+        // Always perform market analysis (it's cached and efficient)
+        await this.marketAnalyzer.performFullAnalysis();
+        
+        // Check if portfolio needs update based on timing and market conditions
         if (this.portfolioManager.shouldUpdatePortfolio()) {
+          console.log("✅ Portfolio update triggered");
           await this.portfolioManager.performPortfolioRebalancing();
         } else {
-          console.log("📊 Portfolio rebalancing not needed.");
+          const nextUpdate = this.portfolioManager.getNextUpdateTime();
+          console.log(`⏳ Next portfolio update in: ${this.formatTimeRemaining(nextUpdate)}`);
         }
 
         this.state.lastUpdate = Date.now();
-        await new Promise(resolve => setTimeout(resolve, 3600 * 1000)); // 1 hour wait
+        
+        // Log next cycle timing
+        console.log(`\n⏰ Next analysis in 1 hour`);
+        console.log("=".repeat(60));
+        
+        // Wait for next cycle (1 hour)
+        await new Promise(resolve => setTimeout(resolve, 60 * 60 * 1000));
       } catch (error) {
-        console.error("❌ Error in main loop:", error);
-        await new Promise(resolve => setTimeout(resolve, 5 * 60 * 1000)); // 5 min wait on error
+        console.error("❌ Error in analysis cycle:", error);
+        console.log("⏳ Retrying in 5 minutes...");
+        await new Promise(resolve => setTimeout(resolve, 5 * 60 * 1000));
       }
     }
+  }
+  
+  private formatTimeRemaining(nextUpdateTime: number): string {
+    const remaining = nextUpdateTime - Date.now();
+    const hours = Math.floor(remaining / (60 * 60 * 1000));
+    const minutes = Math.floor((remaining % (60 * 60 * 1000)) / (60 * 1000));
+    return `${hours}h ${minutes}m`;
   }
 
   // Public getters for state

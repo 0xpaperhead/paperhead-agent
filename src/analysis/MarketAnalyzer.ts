@@ -1,10 +1,9 @@
-import { openai } from "@ai-sdk/openai";
-import { generateText } from "ai";
 import { NewsService } from './newsService.js';
 import { TopicGenerator } from './topicGenerator.js';
 import { TrendAnalyzer } from './trendAnalyzer.js';
 import { TrendingTokensService } from './trendingTokensService.js';
-import { AgentDecision, AgentState, RiskProfile } from '../types/index.js';
+import { AgentState, RiskProfile } from '../types/index.js';
+import { generateMarketInsights, getSentimentInterpretation, getFearGreedRecommendation } from '../utils/marketInsights.js';
 
 export class MarketAnalyzer {
   private newsService: NewsService;
@@ -38,7 +37,7 @@ export class MarketAnalyzer {
     const topicsToAnalyze = this.getTopicsForCurrentCycle();
     console.log(`🎯 Analyzing ${topicsToAnalyze.length} topics this cycle`);
 
-    const [{ topicScores, sentimentData, fearGreedAnalysis }, trendingTokens] = await Promise.all([
+    const [{ topicScores, sentimentData, fearGreedAnalysis }] = await Promise.all([
       this.newsService.fetchAllData(topicsToAnalyze, ['24h']),
       this.trendingTokensService.fetchTrendingTokens()
     ]);
@@ -104,150 +103,8 @@ export class MarketAnalyzer {
     return 'moderate';
   }
 
-  public async makeAgentDecision(): Promise<AgentDecision | null> {
-    try {
-      console.log("\n🤖 Making Agent Decision...");
-      const analysisData = await this.prepareAnalysisForAgent();
-      const decision = await this.generateAgentDecision(analysisData);
-      
-      if (decision) {
-        this.agentState.lastDecision = decision;
-        console.log("💡 Agent Decision:", decision);
-        return decision;
-      }
-      return null;
-    } catch (error) {
-      console.error("❌ Error making agent decision:", error);
-      return null;
-    }
-  }
 
-  private async generateAgentDecision(analysisData: string): Promise<AgentDecision | null> {
-    try {
-      const prompt = `You are a sophisticated crypto trading agent analyzing market trends and sentiment data.
 
-${analysisData}
-
-Based on this comprehensive analysis, make a trading decision. Consider:
-1. Strong trending topics that might have associated tokens
-2. Overall market sentiment and its trend
-3. Risk management (never risk more than 10% of portfolio)
-4. Focus on Solana ecosystem tokens when possible
-
-IMPORTANT: Always use token CONTRACT ADDRESSES (mint addresses) instead of symbols.
-- Must be valid base58-encoded Solana public keys.
-- Example: DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263
-- If you don't have a valid contract address, choose "hold".
-
-Respond with a JSON object containing:
-- action: "buy", "sell", or "hold"
-- token: VALID token CONTRACT ADDRESS (or null for hold)
-- amount: INTEGER percentage of SOL balance to use (1-10)
-- confidence: confidence level 0-100
-- reasoning: detailed explanation of your decision.
-
-Be conservative. If unsure, choose "hold".`;
-
-      const result = await generateText({
-        model: openai("gpt-4o-mini"),
-        prompt,
-        maxTokens: 500,
-      });
-
-      const jsonMatch = result.text.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        const decisionData = JSON.parse(jsonMatch[0]);
-        return {
-          action: decisionData.action,
-          token: decisionData.token,
-          amount: decisionData.amount,
-          confidence: decisionData.confidence,
-          reasoning: decisionData.reasoning,
-          timestamp: Date.now()
-        };
-      }
-      console.log("⚠️ Could not parse decision from AI response:", result.text);
-      return null;
-    } catch (error) {
-      console.error("❌ Error generating agent decision:", error);
-      return null;
-    }
-  }
-
-  private async prepareAnalysisForAgent(): Promise<string> {
-    const topTrending = this.trendAnalyzer.getTopTrendingTopics(5);
-    const topMomentum = this.trendAnalyzer.getTopicsByMomentum().slice(0, 5);
-    const sentimentTrend = this.trendAnalyzer.getSentimentTrend();
-    const fearGreedTrend = this.trendAnalyzer.getFearGreedTrend();
-    const stats = this.trendAnalyzer.getSummaryStats();
-
-    // Get trending token data
-    const tokenAnalysis = await this.trendingTokensService.getMarketAnalysis();
-    const topMomentumTokens = await this.trendingTokensService.getTopMomentumTokens(5, '1h');
-    const lowRiskTokens = await this.trendingTokensService.getLowRiskTrendingTokens(3);
-    const highLiquidityTokens = await this.trendingTokensService.getHighLiquidityTokens(3);
-
-    return `
-COMPREHENSIVE MARKET ANALYSIS REPORT
-===================================
-
-📈 TOP TRENDING TOPICS (Rising):
-${topTrending.map(t => `- ${t.topic}: ${t.trendStrength.toFixed(1)}% change (Score: ${t.currentScore})`).join('\n')}
-
-🚀 TOP MOMENTUM TOPICS:
-${topMomentum.map(m => `- ${m.topic}: Momentum ${m.momentum.toFixed(1)} (${m.trend?.trend || 'stable'})`).join('\n')}
-
-😊 MARKET SENTIMENT:
-- Current: ${sentimentTrend.current?.percentages.positive.toFixed(1)}% positive, ${sentimentTrend.current?.percentages.negative.toFixed(1)}% negative
-- Trend: ${sentimentTrend.trend} (${sentimentTrend.change > 0 ? '+' : ''}${sentimentTrend.change.toFixed(1)}%)
-
-😱 FEAR & GREED INDEX:
-- Current: ${fearGreedTrend.current?.today.value || 'N/A'} (${fearGreedTrend.current?.today.value_classification || 'N/A'})
-- Trend: ${fearGreedTrend.trend} (${(fearGreedTrend.current?.change ?? 0) > 0 ? '+' : ''}${fearGreedTrend.current?.change ?? 0} from yesterday)
-- Average: ${fearGreedTrend.averageValue} | Volatility: ${fearGreedTrend.volatility}
-
-🪙 TRENDING TOKENS ANALYSIS:
-- Market Sentiment: ${tokenAnalysis.marketSentiment.toUpperCase()}
-- Total Tokens Tracked: ${tokenAnalysis.totalTokens}
-- Average Risk Score: ${tokenAnalysis.averageRiskScore.toFixed(1)}/10
-- Risk Distribution: ${tokenAnalysis.riskDistribution.low} low, ${tokenAnalysis.riskDistribution.medium} medium, ${tokenAnalysis.riskDistribution.high} high risk
-
-🚀 TOP MOMENTUM TOKENS (1h):
-${topMomentumTokens.map(t => {
-  const change = t.events['1h']?.priceChangePercentage || 0;
-  const analysis = this.trendingTokensService.analyzeTokenOpportunity(t);
-  return `- ${t.token.symbol} (${t.token.name}): +${change.toFixed(1)}% | Score: ${analysis.score}/100 | ${analysis.recommendation.toUpperCase()}`;
-}).join('\n')}
-
-🛡️ LOW RISK TRENDING TOKENS:
-${lowRiskTokens.map(t => {
-  const change = t.events['1h']?.priceChangePercentage || 0;
-  const liquidity = t.pools[0]?.liquidity.usd || 0;
-  return `- ${t.token.symbol}: +${change.toFixed(1)}% | Risk: ${t.risk.score}/10 | Liquidity: $${(liquidity/1000).toFixed(0)}K`;
-}).join('\n')}
-
-💧 HIGH LIQUIDITY TOKENS:
-${highLiquidityTokens.map(t => {
-  const liquidity = t.pools[0]?.liquidity.usd || 0;
-  const change = t.events['1h']?.priceChangePercentage || 0;
-  return `- ${t.token.symbol}: $${(liquidity/1000000).toFixed(1)}M liquidity | ${change.toFixed(1)}% (1h)`;
-}).join('\n')}
-
-📊 MARKET OVERVIEW:
-- Overall Condition: ${stats.marketCondition.toUpperCase()} 🎯
-- Topics Tracked: ${stats.totalTopicsTracked}
-- Rising: ${stats.risingTopics}, Falling: ${stats.fallingTopics}, Stable: ${stats.stableTopics}
-- Average Popularity: ${stats.avgPopularityScore.toFixed(1)}
-- Sentiment Trend: ${stats.sentimentTrend}
-- Fear & Greed Trend: ${stats.fearGreedTrend}
-
-🎯 CURRENT TOP TOPICS BY POPULARITY:
-${this.agentState.currentTopics.slice(0, 10).map(t => `- ${t.topic}: ${t.popularityScore} articles`).join('\n')}
-
-💡 TRADING SIGNALS:
-${this.generateTradingSignals(fearGreedTrend, sentimentTrend, stats, tokenAnalysis)}
-`;
-  }
 
   private getTopicsForCurrentCycle(): string[] {
     const highPriority = this.topicGenerator.getHighPriorityTopics();
@@ -259,7 +116,7 @@ ${this.generateTradingSignals(fearGreedTrend, sentimentTrend, stats, tokenAnalys
     console.log("\n📊 COMPREHENSIVE ANALYSIS SUMMARY");
     console.log("=".repeat(50));
 
-    // Use cached trend analysis instead of calling analyzeTrends again
+    // Use cached trend analysis to avoid duplicate calls
     const trendAnalysis = this.agentState.trendAnalysis || [];
     const stats = this.trendAnalyzer.getSummaryStatsFromCache(trendAnalysis);
     const fearGreedTrend = this.trendAnalyzer.getFearGreedTrend();
@@ -280,14 +137,7 @@ ${this.generateTradingSignals(fearGreedTrend, sentimentTrend, stats, tokenAnalys
       
       // Sentiment interpretation
       const positiveRatio = sentimentTrend.current.percentages.positive;
-      let sentimentInterpretation = '';
-      if (positiveRatio > 60) sentimentInterpretation = 'Very Bullish 🚀';
-      else if (positiveRatio > 50) sentimentInterpretation = 'Bullish 📈';
-      else if (positiveRatio > 40) sentimentInterpretation = 'Neutral ➡️';
-      else if (positiveRatio > 30) sentimentInterpretation = 'Bearish 📉';
-      else sentimentInterpretation = 'Very Bearish 🔻';
-      
-      console.log(`   💡 Interpretation: ${sentimentInterpretation}`);
+      console.log(`   💡 Interpretation: ${getSentimentInterpretation(positiveRatio)}`);
     }
 
     // Use cached trend analysis for top trending topics
@@ -325,14 +175,7 @@ ${this.generateTradingSignals(fearGreedTrend, sentimentTrend, stats, tokenAnalys
       
       // Fear & Greed interpretation
       const fgValue = parseInt(currentFG.today.value);
-      let fgAdvice = '';
-      if (fgValue > 75) fgAdvice = 'Extreme greed - consider taking profits 💰';
-      else if (fgValue > 55) fgAdvice = 'Greed - good time for balanced approach ⚖️';
-      else if (fgValue > 45) fgAdvice = 'Neutral - wait for clearer signals 🤔';
-      else if (fgValue > 25) fgAdvice = 'Fear - potential buying opportunity 🛒';
-      else fgAdvice = 'Extreme fear - excellent buying opportunity 🚀';
-      
-      console.log(`   💡 Recommendation: ${fgAdvice}`);
+      console.log(`   💡 Recommendation: ${getFearGreedRecommendation(fgValue)}`);
     }
 
     // Enhanced Token analysis
@@ -369,7 +212,7 @@ ${this.generateTradingSignals(fearGreedTrend, sentimentTrend, stats, tokenAnalys
 
     // Market conditions summary
     console.log(`\n💡 MARKET INSIGHTS:`);
-    const insights = this.generateMarketInsights(stats, fearGreedTrend, sentimentTrend, tokenAnalysis);
+    const insights = generateMarketInsights(stats, fearGreedTrend, sentimentTrend, tokenAnalysis);
     insights.forEach((insight, index) => {
       console.log(`   ${index + 1}. ${insight}`);
     });
@@ -377,110 +220,5 @@ ${this.generateTradingSignals(fearGreedTrend, sentimentTrend, stats, tokenAnalys
     console.log("=".repeat(50));
   }
 
-  /**
-   * Generate actionable market insights based on current conditions
-   */
-  private generateMarketInsights(stats: any, fearGreedTrend: any, sentimentTrend: any, tokenAnalysis: any): string[] {
-    const insights: string[] = [];
-    
-    // Risk-based insights
-    if (tokenAnalysis.averageRiskScore > 6) {
-      insights.push('🚨 High market risk detected - consider conservative positions');
-    } else if (tokenAnalysis.averageRiskScore < 3) {
-      insights.push('✅ Low market risk environment - good for position building');
-    }
 
-    // Sentiment-based insights
-    if (sentimentTrend.current) {
-      const positiveRatio = sentimentTrend.current.percentages.positive;
-      if (positiveRatio > 60 && sentimentTrend.trend === 'improving') {
-        insights.push('📈 Strong positive sentiment momentum - consider increasing exposure');
-      } else if (positiveRatio < 35 && sentimentTrend.trend === 'declining') {
-        insights.push('📉 Negative sentiment trend - wait for reversal signals');
-      }
-    }
-
-    // Fear & Greed insights
-    if (fearGreedTrend.current) {
-      const fgValue = parseInt(fearGreedTrend.current.today.value);
-      const change = fearGreedTrend.current.change ?? 0;
-      
-      if (fgValue > 75 && change > 10) {
-        insights.push('⚠️ Rapidly increasing greed - bubble risk increasing');
-      } else if (fgValue < 25 && change < -10) {
-        insights.push('🚀 Capitulation detected - potential reversal opportunity');
-      }
-    }
-
-    // Market condition insights
-    if (stats.marketCondition === 'bullish' && tokenAnalysis.marketSentiment === 'bullish') {
-      insights.push('🎯 Aligned bullish signals - favorable for portfolio building');
-    } else if (stats.marketCondition === 'bearish' && tokenAnalysis.marketSentiment === 'bearish') {
-      insights.push('🛡️ Bearish alignment - defensive strategy recommended');
-    } else {
-      insights.push('🤔 Mixed signals - selective approach with quality tokens');
-    }
-
-    // Trending insights
-    if (stats.risingTopics > stats.fallingTopics * 2) {
-      insights.push('🔥 Strong momentum across topics - trend-following strategy favored');
-    } else if (stats.fallingTopics > stats.risingTopics * 2) {
-      insights.push('❄️ Momentum cooling - wait for stabilization');
-    }
-
-    if (insights.length === 0) {
-      insights.push('📊 Market conditions are neutral - balanced approach recommended');
-    }
-
-    return insights;
-  }
-
-  private generateTradingSignals(fearGreedTrend: any, sentimentTrend: any, stats: any, tokenAnalysis: any): string {
-    const signals: string[] = [];
-    
-    // Fear & Greed signals
-    if (fearGreedTrend.current) {
-      const value = parseInt(fearGreedTrend.current.today.value);
-      if (value <= 25) {
-        signals.push("🔴 EXTREME FEAR detected - Potential buying opportunity (contrarian signal)");
-      } else if (value >= 75) {
-        signals.push("🔴 EXTREME GREED detected - Consider taking profits/reducing positions");
-      } else if (fearGreedTrend.trend === 'improving' && value > 45) {
-        signals.push("🟢 Fear & Greed improving - Positive momentum building");
-      } else if (fearGreedTrend.trend === 'declining' && value < 55) {
-        signals.push("🟡 Fear & Greed declining - Caution advised");
-      }
-    }
-
-    // Sentiment signals
-    const positiveSentiment = sentimentTrend.current?.percentages.positive || 50;
-    if (positiveSentiment > 65 && sentimentTrend.trend === 'improving') {
-      signals.push("🟢 Strong positive sentiment with improving trend");
-    } else if (positiveSentiment < 35 && sentimentTrend.trend === 'declining') {
-      signals.push("🔴 Weak sentiment declining - High risk environment");
-    }
-
-    // Market condition signals
-    if (stats.marketCondition === 'bullish') {
-      signals.push("🟢 BULLISH market conditions detected - Consider long positions");
-    } else if (stats.marketCondition === 'bearish') {
-      signals.push("🔴 BEARISH market conditions detected - Consider defensive positioning");
-    }
-
-    // Topic momentum signals
-    if (stats.risingTopics > stats.fallingTopics * 1.5) {
-      signals.push("🟢 Strong topic momentum - Multiple trending assets");
-    } else if (stats.fallingTopics > stats.risingTopics * 1.5) {
-      signals.push("🔴 Weak topic momentum - Market losing interest");
-    }
-
-    // Token analysis signals
-    if (tokenAnalysis.marketSentiment === 'bullish') {
-      signals.push("🟢 Positive token market sentiment - Consider buying");
-    } else if (tokenAnalysis.marketSentiment === 'bearish') {
-      signals.push("🔴 Negative token market sentiment - Consider selling");
-    }
-
-    return signals.length > 0 ? signals.join('\n') : "🟡 No clear trading signals - Market in neutral state";
-  }
 }

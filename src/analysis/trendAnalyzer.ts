@@ -147,6 +147,54 @@ export class TrendAnalyzer {
   }
 
   /**
+   * Get summary stats from cached trend analysis (avoids recalculation)
+   */
+  getSummaryStatsFromCache(cachedTrends: TrendAnalysis[]): {
+    totalTopicsTracked: number;
+    risingTopics: number;
+    fallingTopics: number;
+    stableTopics: number;
+    avgPopularityScore: number;
+    marketCondition: 'bullish' | 'bearish' | 'neutral';
+    sentimentTrend: string;
+    fearGreedTrend: string;
+    fearGreedStatus: string;
+  } {
+    const risingTopics = cachedTrends.filter(t => t.trend === 'rising').length;
+    const fallingTopics = cachedTrends.filter(t => t.trend === 'falling').length;
+    const stableTopics = cachedTrends.filter(t => t.trend === 'stable').length;
+    const avgPopularityScore = cachedTrends.length > 0
+      ? cachedTrends.reduce((sum, t) => sum + t.currentScore, 0) / cachedTrends.length
+      : 0;
+
+    // Determine market condition
+    let marketCondition: 'bullish' | 'bearish' | 'neutral';
+    if (risingTopics > fallingTopics * 1.5) {
+      marketCondition = 'bullish';
+    } else if (fallingTopics > risingTopics * 1.5) {
+      marketCondition = 'bearish';
+    } else {
+      marketCondition = 'neutral';
+    }
+
+    // Get sentiment and fear/greed trends
+    const sentimentTrend = this.getSentimentTrend();
+    const fearGreedTrend = this.getFearGreedTrend();
+
+    return {
+      totalTopicsTracked: cachedTrends.length,
+      risingTopics,
+      fallingTopics,
+      stableTopics,
+      avgPopularityScore,
+      marketCondition,
+      sentimentTrend: sentimentTrend.trend,
+      fearGreedTrend: fearGreedTrend.trend,
+      fearGreedStatus: fearGreedTrend.current?.today.value_classification || 'Unknown'
+    };
+  }
+
+  /**
    * Get top trending topics (rising)
    */
   getTopTrendingTopics(limit: number = 10): TrendAnalysis[] {
@@ -314,57 +362,6 @@ export class TrendAnalyzer {
     };
   }
 
-  /**
-   * Get overall market statistics from cached trend analysis
-   */
-  getSummaryStatsFromCache(trendAnalysis: TrendAnalysis[]): {
-    totalTopicsTracked: number;
-    risingTopics: number;
-    fallingTopics: number;
-    stableTopics: number;
-    avgPopularityScore: number;
-    sentimentTrend: string;
-    fearGreedStatus: string;
-    fearGreedTrend: string;
-    marketCondition: 'bullish' | 'bearish' | 'neutral';
-  } {
-    // Use provided trend analysis instead of calling analyzeTrends again
-    const rising = trendAnalysis.filter(t => t.trend === 'rising').length;
-    const falling = trendAnalysis.filter(t => t.trend === 'falling').length;
-    const stable = trendAnalysis.filter(t => t.trend === 'stable').length;
-    
-    const sentimentTrend = this.getSentimentTrend();
-    const avgPopularity = trendAnalysis.length > 0 
-      ? trendAnalysis.reduce((sum, t) => sum + t.currentScore, 0) / trendAnalysis.length 
-      : 0;
-
-    // Fear and Greed stats
-    const fearGreedTrend = this.getFearGreedTrend();
-    const fearGreedStatus = fearGreedTrend.current 
-      ? `${fearGreedTrend.current.today.value} (${fearGreedTrend.current.today.value_classification})`
-      : 'N/A';
-
-    // Determine overall market condition
-    let marketCondition: 'bullish' | 'bearish' | 'neutral' = 'neutral';
-    
-    if (rising > falling * 1.5 && sentimentTrend.trend === 'improving') {
-      marketCondition = 'bullish';
-    } else if (falling > rising * 1.5 && sentimentTrend.trend === 'declining') {
-      marketCondition = 'bearish';
-    }
-
-    return {
-      totalTopicsTracked: trendAnalysis.length,
-      risingTopics: rising,
-      fallingTopics: falling,
-      stableTopics: stable,
-      avgPopularityScore: Math.round(avgPopularity * 100) / 100,
-      sentimentTrend: sentimentTrend.trend,
-      fearGreedStatus,
-      fearGreedTrend: fearGreedTrend.trend,
-      marketCondition
-    };
-  }
 
   /**
    * Get overall market statistics (calls analyzeTrends internally)
