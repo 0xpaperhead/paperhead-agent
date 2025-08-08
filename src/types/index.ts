@@ -13,7 +13,7 @@ export interface NewsArticle {
   language: string;
   timeZone: string;
   sentiment: {
-    label: 'positive' | 'neutral' | 'negative';
+    label: "positive" | "neutral" | "negative";
     score: number;
   };
   // Legacy fields for backward compatibility
@@ -30,7 +30,7 @@ export interface TopicScore {
 }
 
 export interface SentimentData {
-  interval: '24h' | '48h';
+  interval: "24h" | "48h";
   total: number;
   counts: {
     positive: number;
@@ -48,12 +48,18 @@ export interface TrendAnalysis {
   topic: string;
   currentScore: number;
   previousScore: number;
-  trend: 'rising' | 'falling' | 'stable';
+  trend: "rising" | "falling" | "stable";
   trendStrength: number; // percentage change
 }
 
+export enum AgentTradeAction {
+  Buy = "buy",
+  Sell = "sell",
+  Hold = "hold",
+}
+
 export interface AgentDecision {
-  action: 'buy' | 'sell' | 'hold';
+  action: AgentTradeAction;
   token?: string;
   amount?: number;
   confidence: number; // 0-100
@@ -84,7 +90,7 @@ export interface FearGreedAnalysis {
   today: FearGreedData & { timestamp: string };
   yesterday: FearGreedData & { timestamp: string };
   change: number; // Difference between today and yesterday
-  trend: 'increasing' | 'decreasing' | 'stable';
+  trend: "increasing" | "decreasing" | "stable";
   classification: string;
 }
 
@@ -155,25 +161,25 @@ export interface TokenPool {
 }
 
 export interface PriceEvents {
-  '1m'?: { priceChangePercentage: number };
-  '5m'?: { priceChangePercentage: number };
-  '15m'?: { priceChangePercentage: number };
-  '30m'?: { priceChangePercentage: number };
-  '1h'?: { priceChangePercentage: number };
-  '2h'?: { priceChangePercentage: number };
-  '3h'?: { priceChangePercentage: number };
-  '4h'?: { priceChangePercentage: number };
-  '5h'?: { priceChangePercentage: number };
-  '6h'?: { priceChangePercentage: number };
-  '12h'?: { priceChangePercentage: number };
-  '24h'?: { priceChangePercentage: number };
+  "1m"?: { priceChangePercentage: number };
+  "5m"?: { priceChangePercentage: number };
+  "15m"?: { priceChangePercentage: number };
+  "30m"?: { priceChangePercentage: number };
+  "1h"?: { priceChangePercentage: number };
+  "2h"?: { priceChangePercentage: number };
+  "3h"?: { priceChangePercentage: number };
+  "4h"?: { priceChangePercentage: number };
+  "5h"?: { priceChangePercentage: number };
+  "6h"?: { priceChangePercentage: number };
+  "12h"?: { priceChangePercentage: number };
+  "24h"?: { priceChangePercentage: number };
 }
 
 export interface TokenRisk {
   name: string;
   description: string;
   value: string;
-  level: 'low' | 'medium' | 'high' | 'danger';
+  level: "low" | "medium" | "high" | "danger";
   score: number;
 }
 
@@ -210,7 +216,7 @@ export interface PortfolioToken {
   confidence: number; // Overall confidence in this pick
 }
 
-export type RiskProfile = 'conservative' | 'moderate' | 'aggressive';
+export type RiskProfile = "conservative" | "moderate" | "aggressive";
 
 export interface Portfolio {
   id: string;
@@ -226,7 +232,7 @@ export interface Portfolio {
       topTrendingTopics: string[];
       totalTokensAnalyzed: number;
     };
-    strategy: 'equal_weight' | 'momentum_based' | 'sentiment_driven' | 'risk_adjusted';
+    strategy: "equal_weight" | "momentum_based" | "sentiment_driven" | "risk_adjusted";
     riskProfile: RiskProfile;
   };
 }
@@ -239,7 +245,7 @@ export interface PortfolioAnalysis {
     averageSentimentScore: number;
     diversificationScore: number; // How well diversified the portfolio is
     marketAlignmentScore: number; // How well aligned with current market sentiment
-    recommendedAction: 'build' | 'wait' | 'adjust';
+    recommendedAction: "build" | "wait" | "adjust";
     warnings: string[];
     strengths: string[];
   };
@@ -264,11 +270,11 @@ export interface TradingConfiguration {
 // Trading Execution Types
 export interface TradeExecution {
   token: PortfolioToken;
-  action: 'buy' | 'sell';
+  action: "buy" | "sell";
   amountSOL: number;
   targetAllocation: number;
   currentAllocation: number;
-  priority: 'high' | 'medium' | 'low';
+  priority: "high" | "medium" | "low";
 }
 
 export interface TradeResult {
@@ -340,4 +346,4 @@ export interface PerformanceMetrics {
   profitFactor: number;
   averageWin: number;
   averageLoss: number;
-} 
+}
