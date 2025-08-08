@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 import { Connection, Keypair, PublicKey, ParsedAccountData } from "@solana/web3.js";
 import { TOKEN_PROGRAM_ID, getAssociatedTokenAddress } from "@solana/spl-token";
 import base58 from "bs58";
@@ -8,7 +10,7 @@ export class SolanaService {
   public keypair: Keypair;
 
   constructor() {
-    this.connection = new Connection(Config.agent.solana_rpc_url, 'confirmed');
+    this.connection = new Connection(Config.agent.solana_rpc_url, "confirmed");
     this.keypair = Keypair.fromSecretKey(base58.decode(Config.agent.solana_private_key));
     console.log(`✅ Solana Service initialized. Wallet: ${this.keypair.publicKey.toBase58()}`);
   }
@@ -16,24 +18,31 @@ export class SolanaService {
   public getWalletPublicKey(): PublicKey {
     return this.keypair.publicKey;
   }
-
+  //Get sol balance (native token)
   public async getWalletBalance(): Promise<number> {
-    const balance = await this.connection.getBalance(this.keypair.publicKey);
-    return balance / 1e9; // Convert lamports to SOL
+    try {
+      const balance = await this.connection.getBalance(this.keypair.publicKey);
+      return balance / 1e9; // Convert lamports to SOL
+    } catch (error) {
+      console.error("Failed to fetch SOL balance:", error);
+      return 0;
+    }
   }
 
   public async getTokenBalance(mintAddress: string): Promise<number> {
     try {
+      //On Solana, token accounts are like “sub-accounts” under your wallet,
+      //each tied to a specific token mint.
       const tokenMint = new PublicKey(mintAddress);
-      const associatedTokenAddress = await getAssociatedTokenAddress(
-        tokenMint,
-        this.keypair.publicKey
-      );
+      const associatedTokenAddress = await getAssociatedTokenAddress(tokenMint, this.keypair.publicKey);
 
       const accountInfo = await this.connection.getParsedAccountInfo(associatedTokenAddress);
 
-      if (accountInfo?.value?.data && 'parsed' in accountInfo.value.data) {
+      if (accountInfo?.value?.data && "parsed" in accountInfo.value.data) {
         const parsedData = accountInfo.value.data as ParsedAccountData;
+
+        if (!parsedData.parsed?.info?.isInitialized) return 0;
+
         const balance = parsedData.parsed?.info?.tokenAmount?.uiAmount || 0;
         return balance;
       }
@@ -45,17 +54,19 @@ export class SolanaService {
       return 0;
     }
   }
-
+  //GET ALL SPL balances in the wallet that are gt 0
   public async getAllTokenBalances(): Promise<Map<string, number>> {
     const balances = new Map<string, number>();
     try {
-      const tokenAccounts = await this.connection.getParsedTokenAccountsByOwner(
-        this.keypair.publicKey,
-        { programId: TOKEN_PROGRAM_ID }
-      );
+      const tokenAccounts = await this.connection.getParsedTokenAccountsByOwner(this.keypair.publicKey, {
+        programId: TOKEN_PROGRAM_ID,
+      });
 
       for (const tokenAccount of tokenAccounts.value) {
         const accountData = tokenAccount.account.data as ParsedAccountData;
+
+        if (!accountData.parsed?.info?.isInitialized) continue;
+
         const mintAddress = accountData.parsed?.info?.mint;
         const balance = accountData.parsed?.info?.tokenAmount?.uiAmount || 0;
 
@@ -64,7 +75,7 @@ export class SolanaService {
         }
       }
     } catch (error) {
-      console.error('Failed to get all token balances:', error);
+      console.error("Failed to get all token balances:", error);
     }
     return balances;
   }
@@ -87,7 +98,7 @@ export class SolanaService {
         }
         const data = await response.json();
         for (const [mint, priceData] of Object.entries<any>(data)) {
-          if (priceData && typeof priceData.usdPrice === 'number') {
+          if (priceData && typeof priceData.usdPrice === "number") {
             prices.set(mint, priceData.usdPrice);
           }
         }
@@ -112,16 +123,19 @@ export class SolanaService {
    * Get a breakdown of the wallet holdings by USD value using Jupiter Price API V3.
    * Returns an array of objects sorted by percentage of total USD value.
    */
-  public async getWalletComposition(): Promise<Array<{
-    mint: string;
-    balance: number;
-    usdPrice: number;
-    valueUSD: number;
-    percentage: number;
-  }>> {
+  public async getWalletComposition(): Promise<
+    Array<{
+      mint: string;
+      balance: number;
+      usdPrice: number;
+      valueUSD: number;
+      percentage: number;
+    }>
+  > {
     // 1. Fetch token balances (SPL) and SOL balance
-    const tokenBalancesMap = await this.getAllTokenBalances();
-    const solBalance = await this.getWalletBalance();
+
+    const [tokenBalancesMap, solBalance] = await Promise.all([this.getAllTokenBalances(), this.getWalletBalance()]);
+
     // Add native SOL using wrapped SOL mint address used by Jupiter API
     const SOL_MINT = "So11111111111111111111111111111111111111112";
     tokenBalancesMap.set(SOL_MINT, solBalance);
