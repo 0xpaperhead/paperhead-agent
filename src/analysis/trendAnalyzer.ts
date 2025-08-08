@@ -11,15 +11,9 @@ export class TrendAnalyzer {
    */
   addTopicScores(topicScores: TopicScore[]): void {
     topicScores.forEach(score => {
-      const history = this.topicHistory.get(score.topic) || [];
-      history.push(score);
-      
-      // Keep only recent history
-      if (history.length > this.maxHistoryLength) {
-        history.shift();
-      }
-      
-      this.topicHistory.set(score.topic, history);
+      const oldHistory = this.topicHistory.get(score.topic) || [];
+      const newHistory = [...oldHistory, score].slice(-this.maxHistoryLength);
+      this.topicHistory.set(score.topic, newHistory);
     });
 
     console.log(`📈 Updated history for ${topicScores.length} topics`);
@@ -30,7 +24,7 @@ export class TrendAnalyzer {
    */
   addSentimentData(sentiment: SentimentData): void {
     this.sentimentHistory.push(sentiment);
-    
+
     // Keep only recent sentiment history
     if (this.sentimentHistory.length > this.maxHistoryLength) {
       this.sentimentHistory.shift();
@@ -44,13 +38,15 @@ export class TrendAnalyzer {
    */
   addFearGreedAnalysis(fearGreedAnalysis: FearGreedAnalysis): void {
     this.fearGreedHistory.push(fearGreedAnalysis);
-    
+
     // Keep only recent history
     if (this.fearGreedHistory.length > this.maxHistoryLength) {
       this.fearGreedHistory.shift();
     }
-    
-    console.log(`😱 Updated Fear & Greed history. Current: ${fearGreedAnalysis.today.value} (${fearGreedAnalysis.today.value_classification})`);
+
+    console.log(
+      `😱 Updated Fear & Greed history. Current: ${fearGreedAnalysis.today.value} (${fearGreedAnalysis.today.value_classification})`,
+    );
   }
 
   /**
@@ -58,7 +54,7 @@ export class TrendAnalyzer {
    */
   analyzeTrends(): TrendAnalysis[] {
     const trends: TrendAnalysis[] = [];
-    
+
     console.log(`\n🔍 TREND ANALYSIS STARTING`);
     console.log(`📊 Total topics in history: ${this.topicHistory.size}`);
     console.log(`📈 Sentiment history entries: ${this.sentimentHistory.length}`);
@@ -69,7 +65,7 @@ export class TrendAnalyzer {
 
     this.topicHistory.forEach((history, topic) => {
       console.log(`   📂 ${topic}: ${history.length} data points`);
-      
+
       if (history.length >= 2) {
         topicsWithSufficientHistory++;
         const trend = this.calculateTrendForTopic(topic, history);
@@ -92,12 +88,16 @@ export class TrendAnalyzer {
     console.log(`   📈 Topics with sufficient history: ${topicsWithSufficientHistory}`);
     console.log(`   🔍 Topics successfully analyzed: ${topicsAnalyzed}`);
     console.log(`   📉 Topics with trends: ${trends.length}`);
-    
+
     if (trends.length > 0) {
       console.log(`\n🚀 TOP TRENDS:`);
       trends.slice(0, 5).forEach((trend, index) => {
-        const emoji = trend.trend === 'rising' ? '📈' : trend.trend === 'falling' ? '📉' : '➡️';
-        console.log(`   ${index + 1}. ${emoji} ${trend.topic}: ${trend.trendStrength.toFixed(1)}% (${trend.currentScore} → ${trend.previousScore})`);
+        const emoji = trend.trend === "rising" ? "📈" : trend.trend === "falling" ? "📉" : "➡️";
+        console.log(
+          `   ${index + 1}. ${emoji} ${trend.topic}: ${trend.trendStrength.toFixed(1)}% (${trend.currentScore} → ${
+            trend.previousScore
+          })`,
+        );
       });
     } else {
       console.log(`   💡 No trends found. This could be because:`);
@@ -123,18 +123,17 @@ export class TrendAnalyzer {
     const previousScore = previous.popularityScore;
 
     // Calculate percentage change
-    const trendStrength = previousScore === 0 
-      ? (currentScore > 0 ? 100 : 0)
-      : ((currentScore - previousScore) / previousScore) * 100;
+    const trendStrength =
+      previousScore === 0 ? (currentScore > 0 ? 100 : 0) : ((currentScore - previousScore) / previousScore) * 100;
 
     // Determine trend direction
-    let trend: 'rising' | 'falling' | 'stable';
+    let trend: "rising" | "falling" | "stable";
     if (Math.abs(trendStrength) < 5) {
-      trend = 'stable';
+      trend = "stable";
     } else if (trendStrength > 0) {
-      trend = 'rising';
+      trend = "rising";
     } else {
-      trend = 'falling';
+      trend = "falling";
     }
 
     return {
@@ -142,7 +141,7 @@ export class TrendAnalyzer {
       currentScore,
       previousScore,
       trend,
-      trendStrength: Math.round(trendStrength * 100) / 100 // Round to 2 decimal places
+      trendStrength: Math.round(trendStrength * 100) / 100, // Round to 2 decimal places
     };
   }
 
@@ -155,26 +154,25 @@ export class TrendAnalyzer {
     fallingTopics: number;
     stableTopics: number;
     avgPopularityScore: number;
-    marketCondition: 'bullish' | 'bearish' | 'neutral';
+    marketCondition: "bullish" | "bearish" | "neutral";
     sentimentTrend: string;
     fearGreedTrend: string;
     fearGreedStatus: string;
   } {
-    const risingTopics = cachedTrends.filter(t => t.trend === 'rising').length;
-    const fallingTopics = cachedTrends.filter(t => t.trend === 'falling').length;
-    const stableTopics = cachedTrends.filter(t => t.trend === 'stable').length;
-    const avgPopularityScore = cachedTrends.length > 0
-      ? cachedTrends.reduce((sum, t) => sum + t.currentScore, 0) / cachedTrends.length
-      : 0;
+    const risingTopics = cachedTrends.filter(t => t.trend === "rising").length;
+    const fallingTopics = cachedTrends.filter(t => t.trend === "falling").length;
+    const stableTopics = cachedTrends.filter(t => t.trend === "stable").length;
+    const avgPopularityScore =
+      cachedTrends.length > 0 ? cachedTrends.reduce((sum, t) => sum + t.currentScore, 0) / cachedTrends.length : 0;
 
     // Determine market condition
-    let marketCondition: 'bullish' | 'bearish' | 'neutral';
+    let marketCondition: "bullish" | "bearish" | "neutral";
     if (risingTopics > fallingTopics * 1.5) {
-      marketCondition = 'bullish';
+      marketCondition = "bullish";
     } else if (fallingTopics > risingTopics * 1.5) {
-      marketCondition = 'bearish';
+      marketCondition = "bearish";
     } else {
-      marketCondition = 'neutral';
+      marketCondition = "neutral";
     }
 
     // Get sentiment and fear/greed trends
@@ -190,7 +188,7 @@ export class TrendAnalyzer {
       marketCondition,
       sentimentTrend: sentimentTrend.trend,
       fearGreedTrend: fearGreedTrend.trend,
-      fearGreedStatus: fearGreedTrend.current?.today.value_classification || 'Unknown'
+      fearGreedStatus: fearGreedTrend.current?.today.value_classification || "Unknown",
     };
   }
 
@@ -199,9 +197,7 @@ export class TrendAnalyzer {
    */
   getTopTrendingTopics(limit: number = 10): TrendAnalysis[] {
     const trends = this.analyzeTrends();
-    return trends
-      .filter(t => t.trend === 'rising')
-      .slice(0, limit);
+    return trends.filter(t => t.trend === "rising").slice(0, limit);
   }
 
   /**
@@ -209,9 +205,7 @@ export class TrendAnalyzer {
    */
   getFallingTopics(limit: number = 10): TrendAnalysis[] {
     const trends = this.analyzeTrends();
-    return trends
-      .filter(t => t.trend === 'falling')
-      .slice(0, limit);
+    return trends.filter(t => t.trend === "falling").slice(0, limit);
   }
 
   /**
@@ -220,15 +214,15 @@ export class TrendAnalyzer {
   getSentimentTrend(): {
     current: SentimentData | null;
     previous: SentimentData | null;
-    trend: 'improving' | 'declining' | 'stable';
+    trend: "improving" | "declining" | "stable";
     change: number;
   } {
     if (this.sentimentHistory.length < 2) {
       return {
         current: this.sentimentHistory[this.sentimentHistory.length - 1] || null,
         previous: null,
-        trend: 'stable',
-        change: 0
+        trend: "stable",
+        change: 0,
       };
     }
 
@@ -240,20 +234,20 @@ export class TrendAnalyzer {
 
     const change = currentPositive - previousPositive;
 
-    let trend: 'improving' | 'declining' | 'stable';
+    let trend: "improving" | "declining" | "stable";
     if (Math.abs(change) < 2) {
-      trend = 'stable';
+      trend = "stable";
     } else if (change > 0) {
-      trend = 'improving';
+      trend = "improving";
     } else {
-      trend = 'declining';
+      trend = "declining";
     }
 
     return {
       current,
       previous,
       trend,
-      change: Math.round(change * 100) / 100
+      change: Math.round(change * 100) / 100,
     };
   }
 
@@ -271,9 +265,9 @@ export class TrendAnalyzer {
     let momentum = trend.currentScore;
 
     // Boost for positive trends
-    if (trend.trend === 'rising') {
+    if (trend.trend === "rising") {
       momentum += Math.abs(trend.trendStrength) * 2;
-    } else if (trend.trend === 'falling') {
+    } else if (trend.trend === "falling") {
       momentum -= Math.abs(trend.trendStrength);
     }
 
@@ -290,7 +284,7 @@ export class TrendAnalyzer {
       const momentum = this.calculateMomentumScore(topic);
       const history = this.topicHistory.get(topic)!;
       const trend = this.calculateTrendForTopic(topic, history);
-      
+
       return { topic, momentum, trend };
     });
 
@@ -316,40 +310,40 @@ export class TrendAnalyzer {
    */
   getFearGreedTrend(): {
     current: FearGreedAnalysis | null;
-    trend: 'improving' | 'declining' | 'stable';
+    trend: "improving" | "declining" | "stable";
     averageValue: number;
     volatility: number;
   } {
     if (this.fearGreedHistory.length === 0) {
       return {
         current: null,
-        trend: 'stable',
+        trend: "stable",
         averageValue: 50,
-        volatility: 0
+        volatility: 0,
       };
     }
 
     const current = this.fearGreedHistory[this.fearGreedHistory.length - 1];
     const values = this.fearGreedHistory.map(fg => parseInt(fg.today.value));
     const averageValue = values.reduce((sum, val) => sum + val, 0) / values.length;
-    
+
     // Calculate volatility (standard deviation)
     const variance = values.reduce((sum, val) => sum + Math.pow(val - averageValue, 2), 0) / values.length;
     const volatility = Math.sqrt(variance);
 
     // Determine overall trend
-    let trend: 'improving' | 'declining' | 'stable' = 'stable';
+    let trend: "improving" | "declining" | "stable" = "stable";
     if (this.fearGreedHistory.length >= 3) {
       const recent = values.slice(-3);
       const older = values.slice(-6, -3);
-      
+
       if (recent.length >= 2 && older.length >= 2) {
         const recentAvg = recent.reduce((sum, val) => sum + val, 0) / recent.length;
         const olderAvg = older.reduce((sum, val) => sum + val, 0) / older.length;
         const change = recentAvg - olderAvg;
-        
+
         if (Math.abs(change) > 5) {
-          trend = change > 0 ? 'improving' : 'declining';
+          trend = change > 0 ? "improving" : "declining";
         }
       }
     }
@@ -358,10 +352,9 @@ export class TrendAnalyzer {
       current,
       trend,
       averageValue: Math.round(averageValue * 100) / 100,
-      volatility: Math.round(volatility * 100) / 100
+      volatility: Math.round(volatility * 100) / 100,
     };
   }
-
 
   /**
    * Get overall market statistics (calls analyzeTrends internally)
@@ -375,10 +368,10 @@ export class TrendAnalyzer {
     sentimentTrend: string;
     fearGreedStatus: string;
     fearGreedTrend: string;
-    marketCondition: 'bullish' | 'bearish' | 'neutral';
+    marketCondition: "bullish" | "bearish" | "neutral";
   } {
     // Call analyzeTrends and then use the cache method
     const trends = this.analyzeTrends();
     return this.getSummaryStatsFromCache(trends);
   }
-} 
+}
