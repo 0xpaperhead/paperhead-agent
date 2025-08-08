@@ -1,3 +1,5 @@
+import {RiskProfile} from "../analysis/RiskProfile.js";
+
 // API Response structure - this is what we get from the API
 export interface NewsArticle {
   title: string;
@@ -209,8 +211,6 @@ export interface PortfolioToken {
   momentumScore: number; // From price momentum
   confidence: number; // Overall confidence in this pick
 }
-
-export type RiskProfile = 'conservative' | 'moderate' | 'aggressive';
 
 export interface Portfolio {
   id: string;

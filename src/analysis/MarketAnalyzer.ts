@@ -2,8 +2,9 @@ import { NewsService } from './newsService.js';
 import { TopicGenerator } from './topicGenerator.js';
 import { TrendAnalyzer } from './trendAnalyzer.js';
 import { TrendingTokensService } from './trendingTokensService.js';
-import { AgentState, RiskProfile } from '../types/index.js';
+import { AgentState } from '../types/index.js';
 import { generateMarketInsights, getSentimentInterpretation, getFearGreedRecommendation } from '../utils/marketInsights.js';
+import {RiskProfile} from './RiskProfile.js';
 
 export class MarketAnalyzer {
   private newsService: NewsService;
@@ -98,9 +99,9 @@ export class MarketAnalyzer {
 
     if (stats.risingTopics > stats.fallingTopics * 1.5) riskScore += 1;
 
-    if (riskScore >= 2) return 'aggressive';
-    if (riskScore <= -2) return 'conservative';
-    return 'moderate';
+    if (riskScore >= 2) return new RiskProfile('aggressive');
+    if (riskScore <= -2) return new RiskProfile('conservative');
+    return new RiskProfile('moderate');
   }
 
 
