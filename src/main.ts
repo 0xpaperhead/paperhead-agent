@@ -1,7 +1,7 @@
 /* eslint-disable no-console */
 import 'dotenv/config'
 import { Agent } from './core/Agent.js';
-import { getRiskProfileInfo } from './config/trading.js';
+import {  RiskProfile } from './analysis/RiskProfile.js'
 
 // Initialize and start the agentic system
 async function startAgent() {
@@ -42,21 +42,15 @@ async function startAgent() {
         }
 
         // Create agent with risk profile from config (can be overridden by passing parameter)
-        const agent = new Agent();
+        const riskProfile = new RiskProfile();
+        const agent = new Agent(riskProfile);
         
         // Initialize the system
         await agent.initialize();
         
         // Get the actual intervals based on risk profile from trading config
-        const riskProfile = agent.getDefaultRiskProfile();
-        const profileInfo = getRiskProfileInfo(riskProfile);
-        const currentProfileData = profileInfo.profiles[riskProfile];
-        const updateHours = currentProfileData.hours;
+        const updateHours = riskProfile.riskProfileInfo.hours;
         
-        const getProfileDescription = (profile: string): string => {
-            const profileData = profileInfo.profiles[profile];
-            return profileData ? `${profile.charAt(0).toUpperCase() + profile.slice(1)} (${profileData.frequency.toLowerCase()}, max ${profileData.maxDailyLoss}% daily loss)` : 'Unknown profile';
-        };
         
         console.log("\n🚀 SYSTEM READY FOR OPERATION");
         console.log("─".repeat(50));
@@ -64,7 +58,7 @@ async function startAgent() {
         console.log("   📊 Analyze market sentiment every hour");
         console.log(`   🔄 Rebalance portfolio every ${updateHours} hours`);
         console.log("   📈 Execute trades based on AI analysis");
-        console.log(`   ⚠️ Risk Management: ${getProfileDescription(riskProfile)}`);
+        console.log(`   ⚠️ Risk Management: ${riskProfile.getProfileDescription()}`);
         console.log("─".repeat(50));
         
         // Start the indefinite loop

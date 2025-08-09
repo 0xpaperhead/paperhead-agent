@@ -1,4 +1,5 @@
-import { RiskProfile, TradingConfiguration } from '../types/index.js';
+import { TradingConfiguration } from '../types/index.js';
+import { RiskLevel } from '../analysis/RiskProfile.js';
 
 /**
  * Default trading configuration with safe defaults
@@ -100,8 +101,8 @@ export function loadTradingConfigFromEnv(): TradingConfiguration {
 /**
  * Get predefined trading configuration by risk profile
  */
-export function getTradingConfigByRiskProfile(riskProfile: RiskProfile): TradingConfiguration {
-  switch (riskProfile) {
+export function getTradingConfigByRiskProfile(riskLevel: RiskLevel): TradingConfiguration {
+  switch (riskLevel) {
     case 'conservative':
       return { ...CONSERVATIVE_TRADING_CONFIG };
     case 'moderate':
@@ -241,90 +242,4 @@ REBALANCE_THRESHOLD=5
 # Safety settings
 EMERGENCY_STOP_ENABLED=true
 `;
-}
-
-/**
- * Get comprehensive risk profile information from trading configurations
- * This is the single source of truth for risk profile characteristics
- */
-export function getRiskProfileInfo(currentProfile?: RiskProfile): {
-  current?: string;
-  profiles: { [key: string]: { 
-    hours: number; 
-    frequency: string; 
-    description: string;
-    maxPositionSize: number;
-    minConfidence: number;
-    maxRiskScore: number;
-    maxDailyLoss: number;
-  } };
-} {
-  const riskProfiles: RiskProfile[] = ['conservative', 'moderate', 'aggressive'];
-  const profiles: { [key: string]: { 
-    hours: number; 
-    frequency: string; 
-    description: string;
-    maxPositionSize: number;
-    minConfidence: number;
-    maxRiskScore: number;
-    maxDailyLoss: number;
-  } } = {};
-  
-  const frequencyMap = {
-    'conservative': 'Low frequency',
-    'moderate': 'Standard frequency',
-    'aggressive': 'High frequency'
-  };
-  
-  const descriptionMap = {
-    'conservative': 'Safer tokens, higher liquidity requirements, updates every 48h',
-    'moderate': 'Balanced risk/reward, standard approach, updates every 24h',
-    'aggressive': 'Higher risk tolerance, volatile tokens, updates every 6h',
-    'live': 'Live trading, no updates'
-  };
-  
-  riskProfiles.forEach(profile => {
-    const config = getTradingConfigByRiskProfile(profile);
-    profiles[profile] = {
-      hours: Math.round(config.portfolioUpdateIntervalMs / (60 * 60 * 1000)),
-      frequency: frequencyMap[profile],
-      description: descriptionMap[profile],
-      maxPositionSize: config.maxPositionSizeSOL,
-      minConfidence: config.minConfidenceThreshold,
-      maxRiskScore: config.maxRiskScore,
-      maxDailyLoss: config.maxDailyLossPercentage
-    };
-  });
-  
-  return {
-    current: currentProfile,
-    profiles
-  };
-}
-
-/**
- * Display a comprehensive comparison of all risk profiles
- */
-export function displayAllRiskProfiles(): string {
-  const info = getRiskProfileInfo();
-  let output = '\n🎯 RISK PROFILE COMPARISON (Single Source of Truth)\n';
-  output += '━'.repeat(80) + '\n';
-  
-  Object.entries(info.profiles).forEach(([profile, data]) => {
-    const isDefault = info.current === profile;
-    const marker = isDefault ? '👉 ' : '   ';
-    
-    output += `${marker}${profile.toUpperCase()}:\n`;
-    output += `     ⏰ Update Interval: ${data.hours} hours (${data.frequency.toLowerCase()})\n`;
-    output += `     💰 Max Position: ${data.maxPositionSize} SOL\n`;
-    output += `     📈 Min Confidence: ${data.minConfidence}%\n`;
-    output += `     ⚠️  Max Risk Score: ${data.maxRiskScore}/10\n`;
-    output += `     📉 Max Daily Loss: ${data.maxDailyLoss}%\n`;
-    output += `     💭 ${data.description}\n\n`;
-  });
-  
-  output += '━'.repeat(80) + '\n';
-  output += '💡 All values come from src/config/trading.ts configurations\n';
-  
-  return output;
 }

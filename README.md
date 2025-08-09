@@ -16,7 +16,8 @@ RISK_PROFILE=aggressive  # Options: conservative, moderate, aggressive
 #### 2. Constructor Parameter (Recommended for Scripts/Testing)
 ```typescript
 // In main.ts or any script
-const agent = new Agent('conservative');  // Override environment setting
+const riskProfile = new RiskProfile('conservative'); // Override environment setting
+const agent = new Agent(riskProfile);
 ```
 
 #### 3. Dynamic Runtime Setting
@@ -29,8 +30,8 @@ console.log(agent.getDefaultRiskProfile()); // Get current setting
 #### 4. Per-Portfolio Basis
 ```typescript
 // Generate specific portfolios with different risk levels
-const conservativePortfolio = await agent.generatePortfolioNow('conservative', 5);
-const aggressivePortfolio = await agent.generatePortfolioNow('aggressive', 10);
+const conservativePortfolio = await agent.generatePortfolioNow(new RiskProfile('conservative'), 5);
+const aggressivePortfolio = await agent.generatePortfolioNow(new RiskProfile('aggressive'), 10);
 
 // Or use the default risk profile
 const defaultPortfolio = await agent.generateDefaultPortfolio(8);
