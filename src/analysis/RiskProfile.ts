@@ -150,24 +150,18 @@ export class RiskProfile {
    * @returns An object with risk profile criteria
    */
   getRiskProfileCriteria() {
-    let maxRiskScore = 10
     let minLiquidity = 50000 // Default for conservative
-    let minConfidence = 30 // Default for conservative
 
     if (this.level === 'moderate') {
-      maxRiskScore = 7
       minLiquidity = 100000
-      minConfidence = 50
     } else if (this.level === 'aggressive') {
-      maxRiskScore = 4
       minLiquidity = 50000
-      minConfidence = 30
     }
 
     return {
-      maxRiskScore,
+      maxRiskScore: this.tradingConfig.maxRiskScore,
       minLiquidity,
-      minConfidence,
+      minConfidence: this.tradingConfig.minConfidenceThreshold,
     }
   }
 
