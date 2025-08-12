@@ -37,26 +37,43 @@ async function main() {
   const publicKey = keypair.publicKey.toBase58();
   console.log(`🔑 Public Key: ${publicKey}`);
 
-  // Fund devnet wallet
-  console.log('RPC URL:', Config.agent.solana_devnet_rpc_url);
-  const connection = new Connection(Config.agent.solana_devnet_rpc_url, 'confirmed');
-  const signature = await connection.requestAirdrop(keypair.publicKey, 2e9);
-  const latestBlockhash = await connection.getLatestBlockhash();
-  await connection.confirmTransaction(
-    {
-      signature,
-      ...latestBlockhash,
-    },
-    'confirmed'
-  );
+  // Ask if user wants to skip airdrop
+  const skipAirdrop = await prompt('Do you want to skip the airdrop? (y/N): ');
+  
+  let balance = 0;
+  let airdroppedSol = 0;
 
-  // Check balance
-  const balance = await connection.getBalance(keypair.publicKey);
+  if (skipAirdrop.toLowerCase() !== 'y') {
+    // Fund devnet wallet
+    console.log('RPC URL:', Config.agent.solana_devnet_rpc_url || clusterApiUrl('devnet'));
+    const connection = new Connection(Config.agent.solana_devnet_rpc_url || clusterApiUrl('devnet'), 'confirmed');
+    
+    try {
+      console.log('🔄 Requesting airdrop...');
+      const signature = await connection.requestAirdrop(keypair.publicKey, 2e9);
+      const latestBlockhash = await connection.getLatestBlockhash();
+      await connection.confirmTransaction(
+        {
+          signature,
+          ...latestBlockhash,
+        },
+        'confirmed'
+      );
 
-  // Calculate actual amount airdropped (lamports → SOL)
-  const airdroppedSol = balance / 1e9;
+      // Check balance
+      balance = await connection.getBalance(keypair.publicKey);
+      
+      // Calculate actual amount airdropped (lamports → SOL)
+      airdroppedSol = balance / 1e9;
 
-  console.log(`\n✅ Airdropped ${airdroppedSol} SOL to: ${keypair.publicKey.toBase58()}`);
+      console.log(`\n✅ Airdropped ${airdroppedSol} SOL to: ${keypair.publicKey.toBase58()}`);
+    } catch (error) {
+      console.log(`\n⚠️  Airdrop failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.log('You can manually fund the wallet later.');
+    }
+  } else {
+    console.log('\n⏭️  Skipped airdrop. Wallet created without funding.');
+  }
 
   const base58PrivateKey = bs58.encode(keypair.secretKey);
   console.log('\n💡 Add this to your .env file if skipping auto-update:');
