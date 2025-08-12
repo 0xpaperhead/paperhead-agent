@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { Config } from "../config/index.js";
 import { NewsArticle, SentimentData, TopicScore, FearGreedResponse, FearGreedAnalysis } from "../types/index.js";
 
@@ -5,12 +6,12 @@ export class NewsService {
   private readonly baseUrl = "https://crypto-news51.p.rapidapi.com/api/v1/crypto";
   private readonly fearGreedUrl = "https://crypto-fear-greed-index2.p.rapidapi.com";
   private readonly headers = {
-    'X-RapidAPI-Key': Config.rapidApi.apiKey,
-    'X-RapidAPI-Host': 'crypto-news51.p.rapidapi.com'
+    "X-RapidAPI-Key": Config.rapidApi.apiKey,
+    "X-RapidAPI-Host": "crypto-news51.p.rapidapi.com",
   };
   private readonly fearGreedHeaders = {
-    'X-RapidAPI-Key': Config.rapidApi.apiKey,
-    'X-RapidAPI-Host': 'crypto-fear-greed-index2.p.rapidapi.com'
+    "X-RapidAPI-Key": Config.rapidApi.apiKey,
+    "X-RapidAPI-Host": "crypto-fear-greed-index2.p.rapidapi.com",
   };
 
   /**
@@ -19,13 +20,15 @@ export class NewsService {
   private async fetchTopicNews(topic: string, limit: number = 100): Promise<NewsArticle[]> {
     try {
       // Topics are already single words, use directly
-      const url = `${this.baseUrl}/articles/search?title_keywords=${encodeURIComponent(topic)}&page=1&limit=${limit}&time_frame=24h&format=json`;
+      const url = `${this.baseUrl}/articles/search?title_keywords=${encodeURIComponent(
+        topic,
+      )}&page=1&limit=${limit}&time_frame=24h&format=json`;
 
       console.log(`📰 Fetching news for topic: "${topic}"`);
 
       const response = await fetch(url, {
-        method: 'GET',
-        headers: this.headers
+        method: "GET",
+        headers: this.headers,
       });
 
       if (!response.ok) {
@@ -38,7 +41,6 @@ export class NewsService {
 
       console.log(`✅ Found ${articles.length} articles for ${topic}`);
       return articles;
-
     } catch (error) {
       console.error(`❌ Error fetching news for ${topic}:`, error);
       return [];
@@ -51,7 +53,7 @@ export class NewsService {
   private async batchFetchTopicNews(topics: string[], limit: number = 100): Promise<Map<string, NewsArticle[]>> {
     console.log(`🚀 Parallel fetching news for ${topics.length} topics...`);
 
-    const promises = topics.map(async (topic) => {
+    const promises = topics.map(async topic => {
       const articles = await this.fetchTopicNews(topic, limit);
       return { topic, articles };
     });
@@ -60,7 +62,7 @@ export class NewsService {
     const topicArticlesMap = new Map<string, NewsArticle[]>();
 
     results.forEach((result, index) => {
-      if (result.status === 'fulfilled') {
+      if (result.status === "fulfilled") {
         topicArticlesMap.set(result.value.topic, result.value.articles);
       } else {
         console.error(`❌ Failed to fetch news for ${topics[index]}:`, result.reason);
@@ -75,15 +77,15 @@ export class NewsService {
   /**
    * Fetch overall crypto sentiment data
    */
-  private async fetchSentiment(interval: '24h' | '48h' = '24h'): Promise<SentimentData | null> {
+  private async fetchSentiment(interval: "24h" | "48h" = "24h"): Promise<SentimentData | null> {
     try {
       const url = `${this.baseUrl}/sentiment?interval=${interval}`;
 
       console.log(`📊 Fetching ${interval} sentiment data`);
 
       const response = await fetch(url, {
-        method: 'GET',
-        headers: this.headers
+        method: "GET",
+        headers: this.headers,
       });
 
       if (!response.ok) {
@@ -93,22 +95,21 @@ export class NewsService {
       const data = await response.json();
 
       console.log(`✅ Sentiment data received for ${interval}`);
-      console.log('📈 Sentiment details:', {
+      console.log("📈 Sentiment details:", {
         interval: data.interval,
         total: data.total,
         counts: {
           positive: data.counts?.positive || 0,
           neutral: data.counts?.neutral || 0,
-          negative: data.counts?.negative || 0
+          negative: data.counts?.negative || 0,
         },
         percentages: {
           positive: data.percentages?.positive || 0,
           neutral: data.percentages?.neutral || 0,
-          negative: data.percentages?.negative || 0
-        }
+          negative: data.percentages?.negative || 0,
+        },
       });
       return data as SentimentData;
-
     } catch (error) {
       console.error(`❌ Error fetching sentiment data:`, error);
       return null;
@@ -118,10 +119,10 @@ export class NewsService {
   /**
    * Batch fetch sentiment data for multiple intervals in parallel
    */
-  private async batchFetchSentiment(intervals: ('24h' | '48h')[]): Promise<Map<string, SentimentData | null>> {
+  private async batchFetchSentiment(intervals: ("24h" | "48h")[]): Promise<Map<string, SentimentData | null>> {
     console.log(`🚀 Parallel fetching sentiment data for ${intervals.length} intervals...`);
 
-    const promises = intervals.map(async (interval) => {
+    const promises = intervals.map(async interval => {
       const sentiment = await this.fetchSentiment(interval);
       return { interval, sentiment };
     });
@@ -130,7 +131,7 @@ export class NewsService {
     const sentimentMap = new Map<string, SentimentData | null>();
 
     results.forEach((result, index) => {
-      if (result.status === 'fulfilled') {
+      if (result.status === "fulfilled") {
         sentimentMap.set(result.value.interval, result.value.sentiment);
       } else {
         console.error(`❌ Failed to fetch sentiment for ${intervals[index]}:`, result.reason);
@@ -147,7 +148,7 @@ export class NewsService {
    */
   private async batchCalculateTopicScores(topics: string[]): Promise<TopicScore[]> {
     console.log(`🔄 Calculating scores for ${topics.length} topics in parallel...`);
-    console.log('📈 Topics to analyze:', topics);
+    console.log("📈 Topics to analyze:", topics);
 
     // Use the batch fetch method for better performance
     const articlesMap = await this.batchFetchTopicNews(topics);
@@ -160,7 +161,7 @@ export class NewsService {
         topic,
         popularityScore,
         articles,
-        timestamp: Date.now()
+        timestamp: Date.now(),
       });
     });
 
@@ -181,8 +182,8 @@ export class NewsService {
       console.log(`😱 Fetching Fear and Greed Index data...`);
 
       const response = await fetch(url, {
-        method: 'GET',
-        headers: this.fearGreedHeaders
+        method: "GET",
+        headers: this.fearGreedHeaders,
       });
 
       if (!response.ok) {
@@ -193,7 +194,6 @@ export class NewsService {
 
       console.log(`✅ Fear and Greed Index data received`);
       return data as FearGreedResponse;
-
     } catch (error) {
       console.error(`❌ Error fetching Fear and Greed Index:`, error);
       return null;
@@ -210,7 +210,6 @@ export class NewsService {
     if (value <= 74) return "Greed";
     return "Extreme Greed";
   }
-
 
   /**
    * Analyze Fear and Greed Index trend (today vs yesterday)
@@ -234,13 +233,13 @@ export class NewsService {
       const yesterdayValue = parseInt(yesterday.value);
       const change = todayValue - yesterdayValue;
 
-      let trend: 'increasing' | 'decreasing' | 'stable';
+      let trend: "increasing" | "decreasing" | "stable";
       if (Math.abs(change) <= 2) {
-        trend = 'stable';
+        trend = "stable";
       } else if (change > 0) {
-        trend = 'increasing';
+        trend = "increasing";
       } else {
-        trend = 'decreasing';
+        trend = "decreasing";
       }
 
       const analysis: FearGreedAnalysis = {
@@ -248,7 +247,7 @@ export class NewsService {
         yesterday,
         change,
         trend,
-        classification: this.getFearGreedClassification(todayValue)
+        classification: this.getFearGreedClassification(todayValue),
       };
 
       console.log(`📊 Fear & Greed Analysis:`, {
@@ -256,46 +255,51 @@ export class NewsService {
         yesterday: `${yesterday.value} (${yesterday.value_classification})`,
         change: change > 0 ? `+${change}` : change.toString(),
         trend,
-        classification: analysis.classification
+        classification: analysis.classification,
       });
 
       return analysis;
-
     } catch (error) {
       console.error(`❌ Error analyzing Fear and Greed trend:`, error);
       return null;
     }
   }
 
-
   /**
    * Comprehensive parallel data fetch - gets all data needed for analysis including Fear & Greed
    */
-  async fetchAllData(topics: string[], sentimentIntervals: ('24h' | '48h')[] = ['24h', '48h']): Promise<{
+  async fetchAllData(
+    topics: string[],
+    sentimentIntervals: ("24h" | "48h")[] = ["24h", "48h"],
+  ): Promise<{
     topicScores: TopicScore[];
     sentimentData: Map<string, SentimentData | null>;
     fearGreedAnalysis: FearGreedAnalysis | null;
   }> {
     console.log(`🚀 Starting comprehensive parallel data fetch...`);
-    console.log(`📊 Fetching data for ${topics.length} topics, ${sentimentIntervals.length} sentiment intervals, and Fear & Greed Index`);
+    console.log(
+      `📊 Fetching data for ${topics.length} topics, ${sentimentIntervals.length} sentiment intervals, and Fear & Greed Index`,
+    );
 
     // Execute all fetches in parallel
     const [topicScores, sentimentData, fearGreedData] = await Promise.all([
       this.batchCalculateTopicScores(topics),
       this.batchFetchSentiment(sentimentIntervals),
-      this.fetchFearGreedIndex()
+      this.fetchFearGreedIndex(),
     ]);
 
     // Analyze Fear & Greed trend
     const fearGreedAnalysis = fearGreedData ? this.analyzeFearGreedTrend(fearGreedData) : null;
 
     console.log(`✅ Comprehensive parallel fetch completed!`);
-    console.log(`📈 Retrieved ${topicScores.length} topic scores, ${sentimentData.size} sentiment datasets, and Fear & Greed analysis of ${fearGreedAnalysis}`);
+    console.log(
+      `📈 Retrieved ${topicScores.length} topic scores, ${sentimentData.size} sentiment datasets, and Fear & Greed analysis of ${fearGreedAnalysis}`,
+    );
 
     return {
       topicScores,
       sentimentData,
-      fearGreedAnalysis
+      fearGreedAnalysis,
     };
   }
-} 
+}
