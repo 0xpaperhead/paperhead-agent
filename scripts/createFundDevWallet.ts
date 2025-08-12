@@ -3,6 +3,7 @@ import path from 'path';
 import readline from 'readline';
 import bs58 from 'bs58';
 import { Keypair, Connection, clusterApiUrl } from '@solana/web3.js';
+import { Config } from '../src/config/index.js';
 
 async function prompt(question: string): Promise<string> {
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
@@ -37,7 +38,8 @@ async function main() {
   console.log(`🔑 Public Key: ${publicKey}`);
 
   // Fund devnet wallet
-  const connection = new Connection(clusterApiUrl('devnet'), 'confirmed');
+  console.log('RPC URL:', Config.agent.solana_devnet_rpc_url);
+  const connection = new Connection(Config.agent.solana_devnet_rpc_url, 'confirmed');
   const signature = await connection.requestAirdrop(keypair.publicKey, 2e9);
   const latestBlockhash = await connection.getLatestBlockhash();
   await connection.confirmTransaction(
@@ -64,18 +66,49 @@ async function main() {
   // Prompt to create new .env file
   const answer = await prompt('Do you want to create/update your .env file? (y/N): ');
   if (answer.toLowerCase() === 'y') {
-    if (!fs.existsSync(envExamplePath)) {
-      console.error('❌ .env.example file not found. Cannot create .env automatically.');
-      process.exit(1);
+    let envContent = '';
+    
+    // If .env exists, read it and update only the Solana keys
+    if (fs.existsSync(envPath)) {
+      envContent = fs.readFileSync(envPath, 'utf-8');
+      
+      // Update existing keys or append if they don't exist
+      const lines = envContent.split('\n');
+      let privateKeyUpdated = false;
+      let rpcUrlUpdated = false;
+      
+      for (let i = 0; i < lines.length; i++) {
+        if (lines[i].startsWith('SOLANA_PRIVATE_KEY=')) {
+          lines[i] = `SOLANA_PRIVATE_KEY=${base58PrivateKey}`;
+          privateKeyUpdated = true;
+        } else if (lines[i].startsWith('SOLANA_RPC_URL=')) {
+          lines[i] = `SOLANA_RPC_URL=https://api.devnet.solana.com`;
+          rpcUrlUpdated = true;
+        }
+      }
+      
+      // Add missing keys if they weren't found
+      if (!privateKeyUpdated) {
+        lines.push(`SOLANA_PRIVATE_KEY=${base58PrivateKey}`);
+      }
+      if (!rpcUrlUpdated) {
+        lines.push(`SOLANA_RPC_URL=https://api.devnet.solana.com`);
+      }
+      
+      envContent = lines.join('\n');
+    } else if (fs.existsSync(envExamplePath)) {
+      // Use .env.example as template
+      envContent = fs.readFileSync(envExamplePath, 'utf-8');
+      envContent = envContent
+        .replace(/SOLANA_PRIVATE_KEY=.*/g, `SOLANA_PRIVATE_KEY=${base58PrivateKey}`)
+        .replace(/SOLANA_RPC_URL=.*/g, `SOLANA_RPC_URL=https://api.devnet.solana.com`);
+    } else {
+      // Create minimal .env with just Solana keys
+      envContent = `SOLANA_PRIVATE_KEY=${base58PrivateKey}\nSOLANA_RPC_URL=https://api.devnet.solana.com\n`;
     }
-    let envContent = fs.readFileSync(envExamplePath, 'utf-8');
-
-    envContent = envContent
-      .replace(/SOLANA_PRIVATE_KEY=.*/g, `SOLANA_PRIVATE_KEY=${base58PrivateKey}`)
-      .replace(/SOLANA_RPC_URL=.*/g, `SOLANA_RPC_URL=https://api.devnet.solana.com`);
 
     fs.writeFileSync(envPath, envContent);
-    console.log(`\n✅ .env file created at: ${envPath}`);
+    console.log(`\n✅ .env file updated at: ${envPath}`);
   } else {
     console.log('Skipping .env creation. Make sure to update it manually.');
   }
