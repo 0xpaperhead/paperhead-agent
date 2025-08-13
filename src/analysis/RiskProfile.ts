@@ -150,7 +150,7 @@ export class RiskProfile {
    * @returns An object with risk profile criteria
    */
   getRiskProfileCriteria() {
-    let minLiquidity = 50000 // Default for conservative
+    let minLiquidity = 250000 // Default for conservative
 
     if (this.level === 'moderate') {
       minLiquidity = 100000
