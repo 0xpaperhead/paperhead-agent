@@ -5,41 +5,41 @@ import {  RiskProfile } from './analysis/RiskProfile.js'
 
 // Initialize and start the agentic system
 async function startAgent() {
-    try {
-        console.log("🎭".repeat(20));
-        console.log("🎭 Starting Paperhead Agentic Trading System...");
-        console.log("💰 Automatic Portfolio Rebalancing System");
-        console.log("🎯 Multi-Token Diversified Portfolio Strategy");
-        console.log("🔄 Intelligent Buy/Sell Based on Market Analysis");
-        console.log("🎭".repeat(20));
+  try {
+    console.log("🎭".repeat(20));
+    console.log("🎭 Starting Paperhead Agentic Trading System...");
+    console.log("💰 Automatic Portfolio Rebalancing System");
+    console.log("🎯 Multi-Token Diversified Portfolio Strategy");
+    console.log("🔄 Intelligent Buy/Sell Based on Market Analysis");
+    console.log("🎭".repeat(20));
 
-        console.log("\n⚙️ SYSTEM STARTUP DIAGNOSTICS");
-        console.log("─".repeat(50));
-        console.log(`🌐 Node.js Version: ${process.version}`);
-        console.log(`📅 Startup Time: ${new Date().toLocaleString()}`);
-        console.log(`💾 Memory Usage: ${Math.round(process.memoryUsage().heapUsed / 1024 / 1024)}MB`);
-        
-        // Environment checks
-        const requiredEnvVars = [
-            'OPENAI_API_KEY',
-            'RAPID_API_KEY', 
-            'SOLANA_TRACKER_API_KEY',
-            'SOLANA_RPC_URL',
-            'SOLANA_PRIVATE_KEY'
-        ];
-        
-        console.log("\n🔐 ENVIRONMENT VALIDATION:");
-        requiredEnvVars.forEach(envVar => {
-            const isSet = !!process.env[envVar];
-            console.log(`   ${isSet ? '✅' : '❌'} ${envVar}: ${isSet ? 'Configured' : 'Missing'}`);
-        });
-        
-        const missingVars = requiredEnvVars.filter(envVar => !process.env[envVar]);
-        if (missingVars.length > 0) {
-            console.log(`\n🚨 Missing required environment variables: ${missingVars.join(', ')}`);
-            console.log('Please check your .env file and ensure all required variables are set.');
-            process.exit(1);
-        }
+    console.log("\n⚙️ SYSTEM STARTUP DIAGNOSTICS");
+    console.log("─".repeat(50));
+    console.log(`🌐 Node.js Version: ${process.version}`);
+  console.log(`📅 Startup Time: ${new Date().toLocaleString()}`);
+    console.log(`💾 Memory Usage: ${Math.round(process.memoryUsage().heapUsed / 1024 / 1024)}MB`);
+
+    // Environment checks
+    const requiredEnvVars = [
+      "OPENAI_API_KEY",
+      "RAPID_API_KEY",
+      "SOLANA_TRACKER_API_KEY",
+      "SOLANA_RPC_URL",
+      "SOLANA_PRIVATE_KEY",
+    ];
+
+    console.log("\n🔐 ENVIRONMENT VALIDATION:");
+    requiredEnvVars.forEach(envVar => {
+      const isSet = !!process.env[envVar];
+      console.log(`   ${isSet ? "✅" : "❌"} ${envVar}: ${isSet ? "Configured" : "Missing"}`);
+    });
+
+    const missingVars = requiredEnvVars.filter(envVar => !process.env[envVar]);
+    if (missingVars.length > 0) {
+      console.log(`\n🚨 Missing required environment variables: ${missingVars.join(", ")}`);
+      console.log("Please check your .env file and ensure all required variables are set.");
+      process.exit(1);
+    }
 
         // Create agent with risk profile from config (can be overridden by passing parameter)
         const riskProfile = new RiskProfile();

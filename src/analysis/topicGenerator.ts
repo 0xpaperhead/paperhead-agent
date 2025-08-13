@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 import { openai } from "@ai-sdk/openai";
 import { generateObject } from "ai";
 import { z } from "zod";
@@ -5,95 +7,95 @@ import { z } from "zod";
 export class TopicGenerator {
   private readonly baseTopics = [
     // Core Solana - single words work best for API
-    'solana',
-    'sol',
-    'jupiter',
-    'orca',
-    'raydium',
-    'serum',
-    'mango',
-    'drift',
-    'solend',
-    'tulip',
-    'marinade',
-    'lido',
-    'jito',
-    'sanctum',
-    
+    "solana",
+    "sol",
+    "jupiter",
+    "orca",
+    "raydium",
+    "serum",
+    "mango",
+    "drift",
+    "solend",
+    "tulip",
+    "marinade",
+    "lido",
+    "jito",
+    "sanctum",
+
     // Solana NFT & Gaming
-    'magic',
-    'tensor',
-    'solanart',
-    'metaplex',
-    'candy',
-    'atlas',
-    'aurory',
-    'genopets',
-    'stepn',
-    'degenerate',
-    'bears',
-    
+    "magic",
+    "tensor",
+    "solanart",
+    "metaplex",
+    "candy",
+    "atlas",
+    "aurory",
+    "genopets",
+    "stepn",
+    "degenerate",
+    "bears",
+
     // Solana Memecoins & Popular Tokens
-    'bonk',
-    'dogwifhat',
-    'wif',
-    'popcat',
-    'book',
-    'jup',
-    'wen',
-    'myro',
-    'slerf',
-    'smog',
-    'pump',
-    'moonshot',
-    
+    "bonk",
+    "dogwifhat",
+    "wif",
+    "popcat",
+    "book",
+    "jup",
+    "wen",
+    "myro",
+    "slerf",
+    "smog",
+    "pump",
+    "moonshot",
+
     // Solana Infrastructure & Tools
-    'phantom',
-    'solflare',
-    'backpack',
-    'glow',
-    'solscan',
-    'dexscreener',
-    'birdeye',
-    'helius',
-    'quicknode',
-    'triton',
-    'validators',
-    'staking',
-    
+    "phantom",
+    "solflare",
+    "backpack",
+    "glow",
+    "solscan",
+    "dexscreener",
+    "birdeye",
+    "helius",
+    "quicknode",
+    "triton",
+    "validators",
+    "staking",
+
     // Solana DeFi Concepts
-    'yield',
-    'liquidity',
-    'perpetuals',
-    'options',
-    'lending',
-    'borrowing',
-    'restaking',
-    
+    "yield",
+    "liquidity",
+    "perpetuals",
+    "options",
+    "lending",
+    "borrowing",
+    "restaking",
+
     // Solana Development & Ecosystem
-    'anchor',
-    'mobile',
-    'saga',
-    'pay',
-    'actions',
-    'blinks',
-    'compressed',
-    'compression',
-    'hackathon',
-    
+    "anchor",
+    "mobile",
+    "saga",
+    "pay",
+    "actions",
+    "blinks",
+    "compressed",
+    "compression",
+    "hackathon",
+
     // Solana RWA & Enterprise
-    'rwa',
-    'assets',
-    'enterprise',
-    'institutional',
-    'etf',
-    'adoption',
-    
+    "rwa",
+    "assets",
+    "enterprise",
+    "institutional",
+    "etf",
+    "adoption",
+
     // Cross-chain but Solana-focused
-    'wormhole',
-    'allbridge',
-    'portal',
-    'bridge'
+    "wormhole",
+    "allbridge",
+    "portal",
+    "bridge",
   ];
 
   private dynamicTopics: string[] = [];
@@ -102,7 +104,10 @@ export class TopicGenerator {
 
   // Zod schema for structured topic extraction
   private readonly topicExtractionSchema = z.object({
-    topics: z.array(z.string().min(2).max(50)).max(15).describe("Array of Solana-related single-word keywords and project names extracted from headlines")
+    topics: z
+      .array(z.string().min(2).max(50))
+      .max(15)
+      .describe("Array of Solana-related single-word keywords and project names extracted from headlines"),
   });
 
   /**
@@ -110,8 +115,8 @@ export class TopicGenerator {
    */
   private async extractTopicsWithAgent(headlines: string[]): Promise<string[]> {
     try {
-      const headlinesText = headlines.slice(0, 50).join('\n'); // Limit to 50 headlines to avoid token limits
-      
+      const headlinesText = headlines.slice(0, 50).join("\n"); // Limit to 50 headlines to avoid token limits
+
       const prompt = `You are a Solana ecosystem expert. Analyze these crypto news headlines and extract ONLY Solana-related single-word keywords and project names.
 
 HEADLINES:
@@ -129,26 +134,23 @@ INSTRUCTIONS:
 Extract single-word Solana keywords from these headlines.`;
 
       const { object } = await generateObject({
-        model: openai('gpt-4o-mini'),
+        model: openai("gpt-4o-mini"),
         schema: this.topicExtractionSchema,
         prompt,
-        system: 'You are a Solana blockchain expert who identifies trending single-word Solana keywords from news headlines. Return only single words, no phrases.',
+        system:
+          "You are a Solana blockchain expert who identifies trending single-word Solana keywords from news headlines. Return only single words, no phrases.",
         temperature: 0.3,
-        maxTokens: 500
+        maxTokens: 500,
       });
 
-      const extractedTopics = object.topics.filter(topic => 
-        typeof topic === 'string' && 
-        topic.length > 2 && 
-        topic.length < 50 &&
-        !topic.includes(' ') // Ensure single words only
+      const extractedTopics = object.topics.filter(
+        topic => typeof topic === "string" && topic.length > 2 && topic.length < 50 && !topic.includes(" "), // Ensure single words only
       );
 
       console.log(`🤖 Agent extracted ${extractedTopics.length} Solana keywords:`, extractedTopics);
       return extractedTopics;
-
     } catch (error) {
-      console.error('❌ Error in agent topic extraction:', error);
+      console.error("❌ Error in agent topic extraction:", error);
       return this.fallbackTopicExtraction(headlines);
     }
   }
@@ -159,28 +161,65 @@ Extract single-word Solana keywords from these headlines.`;
   private fallbackTopicExtraction(headlines: string[]): string[] {
     const potentialTopics: string[] = [];
     const solanaCryptoTerms = [
-      'solana', 'sol', 'spl', 'jupiter', 'orca', 'raydium', 'serum', 'phantom', 'magic',
-      'bonk', 'jup', 'drift', 'mango', 'marinade', 'jito', 'tensor', 'metaplex',
-      'pump', 'moonshot', 'stepn', 'atlas', 'aurory', 'genopets',
-      'anchor', 'solscan', 'birdeye', 'dexscreener', 'helius', 'quicknode',
-      'saga', 'mobile', 'pay', 'compressed', 'blinks', 'wif', 'popcat'
+      "solana",
+      "sol",
+      "spl",
+      "jupiter",
+      "orca",
+      "raydium",
+      "serum",
+      "phantom",
+      "magic",
+      "bonk",
+      "jup",
+      "drift",
+      "mango",
+      "marinade",
+      "jito",
+      "tensor",
+      "metaplex",
+      "pump",
+      "moonshot",
+      "stepn",
+      "atlas",
+      "aurory",
+      "genopets",
+      "anchor",
+      "solscan",
+      "birdeye",
+      "dexscreener",
+      "helius",
+      "quicknode",
+      "saga",
+      "mobile",
+      "pay",
+      "compressed",
+      "blinks",
+      "wif",
+      "popcat",
     ];
 
     headlines.forEach(headline => {
-      const words = headline.toLowerCase()
-        .replace(/[^\w\s]/g, ' ')
+      const words = headline
+        .toLowerCase()
+        .replace(/[^\w\s]/g, " ")
         .split(/\s+/)
         .filter(word => word.length > 2);
 
       // Look for Solana-specific single-word terms
       words.forEach(word => {
-        if (solanaCryptoTerms.includes(word) ||
-            word.includes('sol') ||
-            word.includes('spl') ||
-            (word.endsWith('coin') && word.length < 10) ||
-            (word.endsWith('token') && word.length < 12) ||
-            word.startsWith('$')) {
-          const cleanWord = word.replace('$', '').replace(/coin$/, '').replace(/token$/, '');
+        if (
+          solanaCryptoTerms.includes(word) ||
+          word.includes("sol") ||
+          word.includes("spl") ||
+          (word.endsWith("coin") && word.length < 10) ||
+          (word.endsWith("token") && word.length < 12) ||
+          word.startsWith("$")
+        ) {
+          const cleanWord = word
+            .replace("$", "")
+            .replace(/coin$/, "")
+            .replace(/token$/, "");
           if (cleanWord.length > 2) {
             potentialTopics.push(cleanWord);
           }
@@ -213,7 +252,7 @@ Extract single-word Solana keywords from these headlines.`;
    */
   getTopicsForAnalysis(count: number = 20): string[] {
     const allTopics = this.getAllTopics();
-    
+
     // Shuffle and take the first 'count' topics
     const shuffled = [...allTopics].sort(() => 0.5 - Math.random());
     return shuffled.slice(0, count);
@@ -224,21 +263,21 @@ Extract single-word Solana keywords from these headlines.`;
    */
   getHighPriorityTopics(): string[] {
     return [
-      'solana',
-      'sol',
-      'jupiter',
-      'orca',
-      'raydium',
-      'bonk',
-      'jup',
-      'magic',
-      'phantom',
-      'pump',
-      'marinade',
-      'jito',
-      'drift',
-      'mango',
-      'wif'
+      "solana",
+      "sol",
+      "jupiter",
+      "orca",
+      "raydium",
+      "bonk",
+      "jup",
+      "magic",
+      "phantom",
+      "pump",
+      "marinade",
+      "jito",
+      "drift",
+      "mango",
+      "wif",
     ];
   }
 
@@ -247,12 +286,13 @@ Extract single-word Solana keywords from these headlines.`;
    */
   addDynamicTopics(topics: string[]): void {
     // Filter to single words only and ensure they're not already in base topics
-    const newTopics = topics.filter(topic => 
-      !topic.includes(' ') && // Single words only
-      !this.baseTopics.includes(topic.toLowerCase()) &&
-      !this.dynamicTopics.includes(topic.toLowerCase()) &&
-      topic.length > 2 &&
-      topic.length < 20
+    const newTopics = topics.filter(
+      topic =>
+        !topic.includes(" ") && // Single words only
+        !this.baseTopics.includes(topic.toLowerCase()) &&
+        !this.dynamicTopics.includes(topic.toLowerCase()) &&
+        topic.length > 2 &&
+        topic.length < 20,
     );
 
     this.dynamicTopics.push(...newTopics.map(t => t.toLowerCase()));
@@ -296,46 +336,154 @@ Extract single-word Solana keywords from these headlines.`;
     general: string[];
   } {
     const allTopics = this.getAllTopics();
-    
+
     return {
-      defi: allTopics.filter(t => 
-        ['jupiter', 'orca', 'raydium', 'serum', 'mango', 'drift', 'solend', 'tulip', 
-         'marinade', 'lido', 'jito', 'sanctum', 'yield', 'liquidity', 'perpetuals', 
-         'options', 'lending', 'borrowing', 'staking', 'restaking'].includes(t)
+      defi: allTopics.filter(t =>
+        [
+          "jupiter",
+          "orca",
+          "raydium",
+          "serum",
+          "mango",
+          "drift",
+          "solend",
+          "tulip",
+          "marinade",
+          "lido",
+          "jito",
+          "sanctum",
+          "yield",
+          "liquidity",
+          "perpetuals",
+          "options",
+          "lending",
+          "borrowing",
+          "staking",
+          "restaking",
+        ].includes(t),
       ),
-      memecoins: allTopics.filter(t => 
-        ['bonk', 'dogwifhat', 'wif', 'popcat', 'book', 'wen', 'myro', 'slerf', 'smog', 
-         'pump', 'moonshot'].includes(t)
+      memecoins: allTopics.filter(t =>
+        ["bonk", "dogwifhat", "wif", "popcat", "book", "wen", "myro", "slerf", "smog", "pump", "moonshot"].includes(t),
       ),
-      infrastructure: allTopics.filter(t => 
-        ['solana', 'sol', 'validators', 'staking', 'helius', 'quicknode', 'triton', 
-         'anchor', 'wormhole', 'allbridge', 'portal', 'bridge'].includes(t)
+      infrastructure: allTopics.filter(t =>
+        [
+          "solana",
+          "sol",
+          "validators",
+          "staking",
+          "helius",
+          "quicknode",
+          "triton",
+          "anchor",
+          "wormhole",
+          "allbridge",
+          "portal",
+          "bridge",
+        ].includes(t),
       ),
-      gaming: allTopics.filter(t => 
-        ['atlas', 'aurory', 'genopets', 'stepn'].includes(t)
+      gaming: allTopics.filter(t => ["atlas", "aurory", "genopets", "stepn"].includes(t)),
+      nft: allTopics.filter(t =>
+        [
+          "magic",
+          "tensor",
+          "solanart",
+          "metaplex",
+          "candy",
+          "degenerate",
+          "bears",
+          "compressed",
+          "compression",
+        ].includes(t),
       ),
-      nft: allTopics.filter(t => 
-        ['magic', 'tensor', 'solanart', 'metaplex', 'candy', 'degenerate', 'bears', 
-         'compressed', 'compression'].includes(t)
+      tools: allTopics.filter(t =>
+        [
+          "phantom",
+          "solflare",
+          "backpack",
+          "glow",
+          "solscan",
+          "dexscreener",
+          "birdeye",
+          "mobile",
+          "saga",
+          "pay",
+          "actions",
+          "blinks",
+        ].includes(t),
       ),
-      tools: allTopics.filter(t => 
-        ['phantom', 'solflare', 'backpack', 'glow', 'solscan', 'dexscreener', 
-         'birdeye', 'mobile', 'saga', 'pay', 'actions', 'blinks'].includes(t)
+      general: allTopics.filter(
+        t =>
+          ![
+            "jupiter",
+            "orca",
+            "raydium",
+            "serum",
+            "mango",
+            "drift",
+            "solend",
+            "tulip",
+            "marinade",
+            "lido",
+            "jito",
+            "sanctum",
+            "yield",
+            "liquidity",
+            "perpetuals",
+            "options",
+            "lending",
+            "borrowing",
+            "staking",
+            "restaking",
+            "bonk",
+            "dogwifhat",
+            "wif",
+            "popcat",
+            "book",
+            "wen",
+            "myro",
+            "slerf",
+            "smog",
+            "pump",
+            "moonshot",
+            "solana",
+            "sol",
+            "validators",
+            "staking",
+            "helius",
+            "quicknode",
+            "triton",
+            "anchor",
+            "wormhole",
+            "allbridge",
+            "portal",
+            "bridge",
+            "atlas",
+            "aurory",
+            "genopets",
+            "stepn",
+            "magic",
+            "tensor",
+            "solanart",
+            "metaplex",
+            "candy",
+            "degenerate",
+            "bears",
+            "compressed",
+            "compression",
+            "phantom",
+            "solflare",
+            "backpack",
+            "glow",
+            "solscan",
+            "dexscreener",
+            "birdeye",
+            "mobile",
+            "saga",
+            "pay",
+            "actions",
+            "blinks",
+          ].includes(t),
       ),
-      general: allTopics.filter(t => 
-        !['jupiter', 'orca', 'raydium', 'serum', 'mango', 'drift', 'solend', 'tulip', 
-          'marinade', 'lido', 'jito', 'sanctum', 'yield', 'liquidity', 'perpetuals', 
-          'options', 'lending', 'borrowing', 'staking', 'restaking',
-          'bonk', 'dogwifhat', 'wif', 'popcat', 'book', 'wen', 'myro', 'slerf', 'smog', 
-          'pump', 'moonshot',
-          'solana', 'sol', 'validators', 'staking', 'helius', 'quicknode', 'triton', 
-          'anchor', 'wormhole', 'allbridge', 'portal', 'bridge',
-          'atlas', 'aurory', 'genopets', 'stepn',
-          'magic', 'tensor', 'solanart', 'metaplex', 'candy', 'degenerate', 'bears', 
-          'compressed', 'compression',
-          'phantom', 'solflare', 'backpack', 'glow', 'solscan', 'dexscreener', 
-          'birdeye', 'mobile', 'saga', 'pay', 'actions', 'blinks'].includes(t)
-      )
     };
   }
 
@@ -347,4 +495,4 @@ Extract single-word Solana keywords from these headlines.`;
     const randomTopics = this.getTopicsForAnalysis(15 - highPriority.length);
     return [...new Set([...highPriority, ...randomTopics])].slice(0, 15);
   }
-} 
+}

@@ -17,19 +17,19 @@ export class MarketAnalyzer {
     newsService: NewsService,
     topicGenerator: TopicGenerator,
     trendAnalyzer: TrendAnalyzer,
-    trendingTokensService: TrendingTokensService
+    trendingTokensService: TrendingTokensService,
   ) {
     this.newsService = newsService;
     this.topicGenerator = topicGenerator;
     this.trendAnalyzer = trendAnalyzer;
     this.trendingTokensService = trendingTokensService;
     this.agentState = {
-        currentTopics: [],
-        sentimentHistory: [],
-        trendAnalysis: [],
-        lastDecision: undefined,
-        isRunning: false,
-        lastUpdate: 0
+      currentTopics: [],
+      sentimentHistory: [],
+      trendAnalysis: [],
+      lastDecision: undefined,
+      isRunning: false,
+      lastUpdate: 0,
     };
     console.log("✅ Market Analyzer initialized.");
   }
@@ -39,14 +39,14 @@ export class MarketAnalyzer {
     console.log(`🎯 Analyzing ${topicsToAnalyze.length} topics this cycle`);
 
     const [{ topicScores, sentimentData, fearGreedAnalysis }] = await Promise.all([
-      this.newsService.fetchAllData(topicsToAnalyze, ['24h']),
-      this.trendingTokensService.fetchTrendingTokens()
+      this.newsService.fetchAllData(topicsToAnalyze, ["24h"]),
+      this.trendingTokensService.fetchTrendingTokens(),
     ]);
 
     this.agentState.currentTopics = topicScores;
     this.trendAnalyzer.addTopicScores(topicScores);
 
-    const sentiment24h = sentimentData.get('24h');
+    const sentiment24h = sentimentData.get("24h");
     if (sentiment24h) {
       this.trendAnalyzer.addSentimentData(sentiment24h);
       this.agentState.sentimentHistory.push(sentiment24h);
@@ -94,8 +94,8 @@ export class MarketAnalyzer {
     if (positiveSentiment > 65) riskScore += 1;
     else if (positiveSentiment < 35) riskScore -= 1;
 
-    if (stats.marketCondition === 'bullish') riskScore += 1;
-    else if (stats.marketCondition === 'bearish') riskScore -= 2;
+    if (stats.marketCondition === "bullish") riskScore += 1;
+    else if (stats.marketCondition === "bearish") riskScore -= 2;
 
     if (stats.risingTopics > stats.fallingTopics * 1.5) riskScore += 1;
 
@@ -103,9 +103,6 @@ export class MarketAnalyzer {
     if (riskScore <= -2) return new RiskProfile('conservative');
     return new RiskProfile('moderate');
   }
-
-
-
 
   private printAnalysisSummary(tokenAnalysis: any): void {
     console.log("\n📊 COMPREHENSIVE ANALYSIS SUMMARY");
@@ -116,35 +113,47 @@ export class MarketAnalyzer {
     const stats = this.trendAnalyzer.getSummaryStatsFromCache(trendAnalysis);
     const fearGreedTrend = this.trendAnalyzer.getFearGreedTrend();
     const sentimentTrend = this.trendAnalyzer.getSentimentTrend();
-    
+
     // Market Overview
     console.log(`🎯 Market Condition: ${stats.marketCondition.toUpperCase()}`);
-    console.log(`📈 Topics: ${stats.totalTopicsTracked} tracked | 🔥 ${stats.risingTopics} rising | 📉 ${stats.fallingTopics} falling`);
+    console.log(
+      `📈 Topics: ${stats.totalTopicsTracked} tracked | 🔥 ${stats.risingTopics} rising | 📉 ${stats.fallingTopics} falling`,
+    );
     console.log(`😊 Sentiment: ${stats.sentimentTrend}`);
     console.log(`😱 Fear & Greed: ${stats.fearGreedStatus} (${stats.fearGreedTrend})`);
 
     // Detailed Sentiment Analysis
     if (sentimentTrend.current) {
       console.log(`\n😊 SENTIMENT ANALYSIS:`);
-      console.log(`   📊 Current: ${sentimentTrend.current.percentages.positive.toFixed(1)}% positive | ${sentimentTrend.current.percentages.negative.toFixed(1)}% negative`);
+      console.log(
+        `   📊 Current: ${sentimentTrend.current.percentages.positive.toFixed(
+          1,
+        )}% positive | ${sentimentTrend.current.percentages.negative.toFixed(1)}% negative`,
+      );
       console.log(`   📈 Total Articles: ${sentimentTrend.current.total}`);
-      console.log(`   🔄 Trend: ${sentimentTrend.trend} (${sentimentTrend.change > 0 ? '+' : ''}${sentimentTrend.change.toFixed(1)}%)`);
-      
+      console.log(
+        `   🔄 Trend: ${sentimentTrend.trend} (${sentimentTrend.change > 0 ? "+" : ""}${sentimentTrend.change.toFixed(
+          1,
+        )}%)`,
+      );
+
       // Sentiment interpretation
       const positiveRatio = sentimentTrend.current.percentages.positive;
       console.log(`   💡 Interpretation: ${getSentimentInterpretation(positiveRatio)}`);
     }
 
     // Use cached trend analysis for top trending topics
-    const topTrending = trendAnalysis
-      .filter(t => t.trend === 'rising')
-      .slice(0, 5);
-      
+    const topTrending = trendAnalysis.filter(t => t.trend === "rising").slice(0, 5);
+
     if (topTrending.length > 0) {
       console.log("\n🚀 TOP TRENDING TOPICS:");
       topTrending.forEach((t, index) => {
-        const emoji = t.trend === 'rising' ? '📈' : '📉';
-        console.log(`   ${index + 1}. ${emoji} ${t.topic}: ${t.trendStrength > 0 ? '+' : ''}${t.trendStrength.toFixed(1)}% (${t.currentScore} articles)`);
+        const emoji = t.trend === "rising" ? "📈" : "📉";
+        console.log(
+          `   ${index + 1}. ${emoji} ${t.topic}: ${t.trendStrength > 0 ? "+" : ""}${t.trendStrength.toFixed(1)}% (${
+            t.currentScore
+          } articles)`,
+        );
       });
     } else {
       console.log("\n📈 No trending topics detected (insufficient historical data)");
@@ -165,9 +174,11 @@ export class MarketAnalyzer {
       console.log(`   📊 Today: ${currentFG.today.value} (${currentFG.today.value_classification})`);
       console.log(`   📊 Yesterday: ${currentFG.yesterday.value} (${currentFG.yesterday.value_classification})`);
       const change = currentFG.change ?? 0;
-      console.log(`   🔄 Change: ${change > 0 ? '+' : ''}${change} points`);
-      console.log(`   📈 Trend: ${fearGreedTrend.trend} | Average: ${fearGreedTrend.averageValue} | Volatility: ${fearGreedTrend.volatility}`);
-      
+      console.log(`   🔄 Change: ${change > 0 ? "+" : ""}${change} points`);
+      console.log(
+        `   📈 Trend: ${fearGreedTrend.trend} | Average: ${fearGreedTrend.averageValue} | Volatility: ${fearGreedTrend.volatility}`,
+      );
+
       // Fear & Greed interpretation
       const fgValue = parseInt(currentFG.today.value);
       console.log(`   💡 Recommendation: ${getFearGreedRecommendation(fgValue)}`);
@@ -178,7 +189,7 @@ export class MarketAnalyzer {
     console.log(`🎯 Market Sentiment: ${tokenAnalysis.marketSentiment.toUpperCase()}`);
     console.log(`📊 Total Tokens: ${tokenAnalysis.totalTokens}`);
     console.log(`⚠️ Average Risk: ${tokenAnalysis.averageRiskScore.toFixed(1)}/10`);
-    
+
     // Risk distribution with emojis
     console.log(`🔴 High Risk (6+): ${tokenAnalysis.riskDistribution.high} tokens`);
     console.log(`🟡 Medium Risk (3-6): ${tokenAnalysis.riskDistribution.medium} tokens`);
@@ -188,10 +199,14 @@ export class MarketAnalyzer {
     if (tokenAnalysis.topPerformers && tokenAnalysis.topPerformers.length > 0) {
       console.log(`\n🚀 TOP PERFORMING TOKENS (1h):`);
       tokenAnalysis.topPerformers.slice(0, 3).forEach((token: any, index: number) => {
-        const perf = token.events['1h']?.priceChangePercentage || 0;
+        const perf = token.events["1h"]?.priceChangePercentage || 0;
         const risk = token.risk.score;
         const liquidity = token.pools[0]?.liquidity.usd || 0;
-        console.log(`   ${index + 1}. ${token.token.symbol}: +${perf.toFixed(1)}% | Risk: ${risk}/10 | Liq: $${(liquidity/1000).toFixed(0)}K`);
+        console.log(
+          `   ${index + 1}. ${token.token.symbol}: +${perf.toFixed(1)}% | Risk: ${risk}/10 | Liq: $${(
+            liquidity / 1000
+          ).toFixed(0)}K`,
+        );
       });
     }
 
@@ -201,7 +216,7 @@ export class MarketAnalyzer {
       tokenAnalysis.volumeLeaders.slice(0, 3).forEach((token: any, index: number) => {
         const volume = token.pools[0]?.txns.volume || 0;
         const risk = token.risk.score;
-        console.log(`   ${index + 1}. ${token.token.symbol}: $${(volume/1000000).toFixed(1)}M | Risk: ${risk}/10`);
+        console.log(`   ${index + 1}. ${token.token.symbol}: $${(volume / 1000000).toFixed(1)}M | Risk: ${risk}/10`);
       });
     }
 
@@ -214,6 +229,4 @@ export class MarketAnalyzer {
 
     console.log("=".repeat(50));
   }
-
-
 }

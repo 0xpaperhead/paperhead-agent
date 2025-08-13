@@ -21,6 +21,7 @@ export class Agent {
   private marketAnalyzer: MarketAnalyzer;
   private portfolioManager!: PortfolioManager;
   private tradeExecutor!: TradeExecutor;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private tools: any;
 
   // Services
@@ -39,14 +40,14 @@ export class Agent {
     currentTopics: [],
     sentimentHistory: [],
     trendAnalysis: [],
-    lastDecision: undefined
+    lastDecision: undefined,
   };
 
   constructor(riskProfile: RiskProfile) {
     // Use provided risk profile, or fall back to config
     this.defaultRiskProfile = riskProfile;
     this.solanaService = new SolanaService();
-    
+
     // Instantiate all services once
     this.newsService = new NewsService();
     this.topicGenerator = new TopicGenerator();
@@ -54,7 +55,12 @@ export class Agent {
     this.trendingTokensService = new TrendingTokensService();
     this.portfolioService = new PortfolioService(this.trendingTokensService, this.trendAnalyzer);
 
-    this.marketAnalyzer = new MarketAnalyzer(this.newsService, this.topicGenerator, this.trendAnalyzer, this.trendingTokensService);
+    this.marketAnalyzer = new MarketAnalyzer(
+      this.newsService,
+      this.topicGenerator,
+      this.trendAnalyzer,
+      this.trendingTokensService,
+    );
   }
 
   async initialize(): Promise<void> {
@@ -75,13 +81,15 @@ export class Agent {
 
     // Initialize trading tools
     console.log("\n🛠️ Setting up trading infrastructure...");
+
     const wallet = solana({
-        keypair: this.solanaService.keypair,
-        connection: this.solanaService.connection,
+      keypair: this.solanaService.keypair,
+      connection: this.solanaService.connection,
     });
+    //GOAT SDK plugin system, giving your agent modular, on-chain powers
     const { tool } = await getOnChainTools({
-        wallet,
-        plugins: [sendSOL(), splToken(), jupiter(), orca()],
+      wallet,
+      plugins: [sendSOL(), splToken(), jupiter(), orca()],
     });
     this.tools = tool;
     console.log("✅ Trading tools initialized (sendSOL, splToken, jupiter, orca)");
@@ -89,27 +97,27 @@ export class Agent {
     this.tradeExecutor = new TradeExecutor(this.solanaService, this.tools);
 
     this.portfolioManager = new PortfolioManager(
-        this.portfolioService,
-        this.tradeExecutor,
-        this.solanaService,
-        this.marketAnalyzer,
-        this.trendAnalyzer
+      this.portfolioService,
+      this.tradeExecutor,
+      this.solanaService,
+      this.marketAnalyzer,
+      this.trendAnalyzer,
     );
-    
+
     // Configuration summary
     console.log("\n⚙️ SYSTEM CONFIGURATION:");
     console.log(`   🎯 Default Risk Profile: ${this.defaultRiskProfile.level.toUpperCase()}`);
     console.log(`   🔄 Update Interval: ${this.getUpdateIntervalDisplay()}`);
     console.log(`   📊 Market Analysis: Comprehensive (News + Sentiment + Fear&Greed + Tokens)`);
     console.log(`   🪙 Token Sources: Solana Tracker API`);
-    
+
     // Show detailed trading configuration
     console.log(displayTradingConfig(this.defaultRiskProfile.tradingConfig));
     
     // Start comprehensive market analysis
     console.log("\n📊 Performing initial market analysis...");
     await this.marketAnalyzer.performFullAnalysis();
-    
+
     // Generate initial portfolio
     console.log("\n💼 Generating initial portfolio...");
     await this.portfolioManager.generatePortfolioNow(this.defaultRiskProfile, 10);
@@ -123,11 +131,11 @@ export class Agent {
   private getUpdateIntervalDisplay(): string {
     const config = this.defaultRiskProfile.tradingConfig;
     const hours = Math.round(config.portfolioUpdateIntervalMs / (60 * 60 * 1000));
-    
+
     const frequencyMap = {
-      'conservative': 'low frequency',
-      'moderate': 'standard',
-      'aggressive': 'high frequency'
+      conservative: "low frequency",
+      moderate: "standard",
+      aggressive: "high frequency",
     };
     
     return `${hours} hours (${frequencyMap[this.defaultRiskProfile.level]})`;
@@ -152,17 +160,17 @@ export class Agent {
 
   private async runMainLoop(): Promise<void> {
     let cycleCount = 0;
-    
+
     while (this.state.isRunning) {
       try {
         cycleCount++;
         console.log(`\n🔄 ANALYSIS CYCLE #${cycleCount}`);
         console.log("=".repeat(60));
         console.log(`⏰ Time: ${new Date().toLocaleString()}`);
-        
+
         // Always perform market analysis (it's cached and efficient)
         await this.marketAnalyzer.performFullAnalysis();
-        
+
         // Check if portfolio needs update based on timing and market conditions
         if (this.portfolioManager.shouldUpdatePortfolio()) {
           console.log("✅ Portfolio update triggered");
@@ -173,11 +181,11 @@ export class Agent {
         }
 
         this.state.lastUpdate = Date.now();
-        
+
         // Log next cycle timing
         console.log(`\n⏰ Next analysis in 1 hour`);
         console.log("=".repeat(60));
-        
+
         // Wait for next cycle (1 hour)
         await new Promise(resolve => setTimeout(resolve, 60 * 60 * 1000));
       } catch (error) {
@@ -187,7 +195,7 @@ export class Agent {
       }
     }
   }
-  
+
   private formatTimeRemaining(nextUpdateTime: number): string {
     const remaining = nextUpdateTime - Date.now();
     const hours = Math.floor(remaining / (60 * 60 * 1000));
@@ -196,9 +204,11 @@ export class Agent {
   }
 
   // Public getters for state
-  public getState(): AgentState { return this.state; }
+  public getState(): AgentState {
+    return this.state;
+  }
   public getCurrentPortfolio(): PortfolioAnalysis | null {
-      return this.portfolioManager.getCurrentPortfolio();
+    return this.portfolioManager.getCurrentPortfolio();
   }
 
   // Public methods for portfolio management (delegating to PortfolioManager)
