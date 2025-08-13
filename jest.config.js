@@ -2,9 +2,10 @@ export default {
   preset: 'ts-jest/presets/default-esm',
   extensionsToTreatAsEsm: ['.ts'],
   testEnvironment: 'node',
-  rootDir: './src',
+  rootDir: './',
   testMatch: [
     '**/__tests__/**/*.test.ts',
+    '**/__tests__/**/*.integration.ts',
     '**/?(*.)+(spec|test).ts'
   ],
   collectCoverageFrom: [
@@ -15,7 +16,7 @@ export default {
     '!**/dist/**',
     '!**/coverage/**'
   ],
-  coverageDirectory: '../coverage',
+  coverageDirectory: './coverage',
   coverageReporters: ['text', 'lcov', 'html'],
   transform: {
     '^.+\\.ts$': ['ts-jest', {
@@ -32,7 +33,7 @@ export default {
   moduleNameMapper: {
     '^(\\.{1,2}/.*)\\.js$': '$1'
   },
-  setupFilesAfterEnv: ['<rootDir>/__tests__/setup.ts'],
+  setupFilesAfterEnv: ['./__tests__/setup.ts'],
   testTimeout: 120000, // 2 minutes for integration tests
   maxWorkers: 1, // Run tests sequentially to avoid API rate limits
   verbose: true,

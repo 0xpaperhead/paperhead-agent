@@ -3,18 +3,18 @@ import { jupiter } from "@goat-sdk/plugin-jupiter";
 import { orca } from "@goat-sdk/plugin-orca";
 import { splToken } from "@goat-sdk/plugin-spl-token";
 import { sendSOL, solana } from "@goat-sdk/wallet-solana";
-import { AgentState, PortfolioAnalysis, RiskProfile } from "../types/index.js";
+import { AgentState, PortfolioAnalysis } from "../types/index.js";
 import { SolanaService } from "./SolanaService.js";
 import { MarketAnalyzer } from "../analysis/MarketAnalyzer.js";
 import { PortfolioManager } from "./PortfolioManager.js";
 import { TradeExecutor } from "./TradeExecutor.js";
 import { PortfolioService } from "../analysis/portfolioService.js";
 import { TrendAnalyzer } from "../analysis/trendAnalyzer.js";
-import { TrendingTokensService } from "../analysis/trendingTokensService.js";
-import { NewsService } from "../analysis/newsService.js";
-import { TopicGenerator } from "../analysis/topicGenerator.js";
-import { Config } from "../config/index.js";
-import { getTradingConfigByRiskProfile, getRiskProfileInfo, displayTradingConfig } from "../config/trading.js";
+import { TrendingTokensService } from '../analysis/trendingTokensService.js';
+import { NewsService } from '../analysis/newsService.js';
+import { TopicGenerator } from '../analysis/topicGenerator.js';
+import { displayTradingConfig } from '../config/trading.js';
+import { RiskProfile, RiskProfileInfo } from '../analysis/RiskProfile.js'
 
 export class Agent {
   private solanaService: SolanaService;
@@ -43,9 +43,9 @@ export class Agent {
     lastDecision: undefined,
   };
 
-  constructor(riskProfile?: RiskProfile) {
+  constructor(riskProfile: RiskProfile) {
     // Use provided risk profile, or fall back to config
-    this.defaultRiskProfile = riskProfile || Config.agent.risk_profile;
+    this.defaultRiskProfile = riskProfile;
     this.solanaService = new SolanaService();
 
     // Instantiate all services once
@@ -106,15 +106,14 @@ export class Agent {
 
     // Configuration summary
     console.log("\n⚙️ SYSTEM CONFIGURATION:");
-    console.log(`   🎯 Default Risk Profile: ${this.defaultRiskProfile.toUpperCase()}`);
+    console.log(`   🎯 Default Risk Profile: ${this.defaultRiskProfile.level.toUpperCase()}`);
     console.log(`   🔄 Update Interval: ${this.getUpdateIntervalDisplay()}`);
     console.log(`   📊 Market Analysis: Comprehensive (News + Sentiment + Fear&Greed + Tokens)`);
     console.log(`   🪙 Token Sources: Solana Tracker API`);
 
     // Show detailed trading configuration
-    const tradingConfig = getTradingConfigByRiskProfile(this.defaultRiskProfile);
-    console.log(displayTradingConfig(tradingConfig));
-
+    console.log(displayTradingConfig(this.defaultRiskProfile.tradingConfig));
+    
     // Start comprehensive market analysis
     console.log("\n📊 Performing initial market analysis...");
     await this.marketAnalyzer.performFullAnalysis();
@@ -130,7 +129,7 @@ export class Agent {
 
   // Helper method to get update interval display
   private getUpdateIntervalDisplay(): string {
-    const config = getTradingConfigByRiskProfile(this.defaultRiskProfile);
+    const config = this.defaultRiskProfile.tradingConfig;
     const hours = Math.round(config.portfolioUpdateIntervalMs / (60 * 60 * 1000));
 
     const frequencyMap = {
@@ -138,26 +137,13 @@ export class Agent {
       moderate: "standard",
       aggressive: "high frequency",
     };
-
-    return `${hours} hours (${frequencyMap[this.defaultRiskProfile]})`;
+    
+    return `${hours} hours (${frequencyMap[this.defaultRiskProfile.level]})`;
   }
 
   // Get comprehensive risk profile information
-  public getRiskProfileInfo(): {
-    current?: string;
-    profiles: {
-      [key: string]: {
-        hours: number;
-        frequency: string;
-        description: string;
-        maxPositionSize: number;
-        minConfidence: number;
-        maxRiskScore: number;
-        maxDailyLoss: number;
-      };
-    };
-  } {
-    return getRiskProfileInfo(this.defaultRiskProfile);
+  public getRiskProfileInfo(): RiskProfileInfo  {
+    return this.defaultRiskProfile.riskProfileInfo;
   }
 
   public start(): void {
@@ -253,7 +239,7 @@ export class Agent {
 
   public setDefaultRiskProfile(riskProfile: RiskProfile): void {
     this.defaultRiskProfile = riskProfile;
-    console.log(`🎯 Default risk profile updated to: ${riskProfile.toUpperCase()}`);
+    console.log(`🎯 Default risk profile updated to: ${riskProfile.level.toUpperCase()}`);
   }
 
   // Generate portfolio with default risk profile
@@ -263,8 +249,8 @@ export class Agent {
 
   // Display current trading configuration
   public displayCurrentTradingConfig(): void {
-    const config = getTradingConfigByRiskProfile(this.defaultRiskProfile);
-    console.log(`\n🔧 CURRENT TRADING CONFIGURATION (${this.defaultRiskProfile.toUpperCase()}):`);
+    const config = this.defaultRiskProfile.tradingConfig;
+    console.log(`\n🔧 CURRENT TRADING CONFIGURATION (${this.defaultRiskProfile.level.toUpperCase()}):`);
     console.log(displayTradingConfig(config));
   }
 }

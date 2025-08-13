@@ -1,7 +1,13 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { TrendingTokensService } from "./trendingTokensService.js";
 import { TrendAnalyzer } from "./trendAnalyzer.js";
-import { Portfolio, PortfolioToken, PortfolioAnalysis, TrendingToken, RiskProfile } from "../types/index.js";
+import { 
+  Portfolio, 
+  PortfolioToken, 
+  PortfolioAnalysis, 
+  TrendingToken,
+} from "../types/index.js";
+import {CompositeParams, RiskProfile} from "./RiskProfile.js";
 
 export class PortfolioService {
   private trendingTokensService: TrendingTokensService;
@@ -17,12 +23,12 @@ export class PortfolioService {
    */
   async generateEqualAllocationPortfolio(
     numberOfTokens: number = 5,
-    riskProfile: RiskProfile = "moderate",
-    cachedTrendAnalysis?: any[], // Optional cached trend analysis to avoid duplicate calls
+    riskProfile: RiskProfile,
+    cachedTrendAnalysis?: any[] // Optional cached trend analysis to avoid duplicate calls
   ): Promise<PortfolioAnalysis> {
     console.log(`\n💼 PORTFOLIO GENERATION STARTING`);
     console.log(`🎯 Target: ${numberOfTokens}-token equal allocation portfolio`);
-    console.log(`⚠️ Risk Profile: ${riskProfile.toUpperCase()}`);
+    console.log(`⚠️ Risk Profile: ${riskProfile.level.toUpperCase()}`);
     console.log(`💰 Allocation per token: ${(100 / numberOfTokens).toFixed(1)}%`);
 
     // Gather all market data
@@ -66,8 +72,8 @@ export class PortfolioService {
     console.log(`✅ Scored ${scoredTokens.length} tokens for ${riskProfile} portfolio`);
 
     // Show risk profile criteria
-    const riskCriteria = this.getRiskProfileCriteria(riskProfile);
-    console.log(`📋 ${riskProfile.toUpperCase()} CRITERIA:`);
+    const riskCriteria = riskProfile.getRiskProfileCriteria();
+    console.log(`📋 ${riskProfile.level.toUpperCase()} CRITERIA:`);
     console.log(`   ⚠️ Max Risk Score: ${riskCriteria.maxRiskScore}/10`);
     console.log(`   💰 Min Liquidity: $${(riskCriteria.minLiquidity / 1000).toFixed(0)}K`);
     console.log(`   📈 Min Confidence: ${riskCriteria.minConfidence}%`);
@@ -111,7 +117,7 @@ export class PortfolioService {
     // Create portfolio
     const portfolio: Portfolio = {
       id: `portfolio_${Date.now()}`,
-      name: `Equal Weight ${riskProfile.charAt(0).toUpperCase() + riskProfile.slice(1)} Portfolio`,
+      name: `Equal Weight ${riskProfile.level.charAt(0).toUpperCase() + riskProfile.level.slice(1)} Portfolio`,
       description: `AI-generated equal allocation portfolio based on comprehensive sentiment analysis`,
       totalAllocation: 100,
       tokens: portfolioTokens,
@@ -160,13 +166,7 @@ export class PortfolioService {
     for (const token of tokens) {
       const analysis = this.trendingTokensService.analyzeTokenOpportunity(token);
 
-      // Skip rugged or very high-risk tokens for conservative profiles
-      if (riskProfile === "conservative" && (token.risk.rugged || token.risk.score > 4)) {
-        continue;
-      }
-
-      // Skip extremely high-risk tokens for moderate profiles
-      if (riskProfile === "moderate" && (token.risk.rugged || token.risk.score > 7)) {
+      if (riskProfile.tokenExceedsRisk(token.risk.rugged, token.risk.score)) {
         continue;
       }
 
@@ -180,7 +180,7 @@ export class PortfolioService {
       const confidence = this.calculateConfidence(token, analysis, riskProfile);
 
       // Skip tokens below confidence threshold
-      const minConfidence = riskProfile === "conservative" ? 70 : riskProfile === "moderate" ? 50 : 30;
+      const minConfidence = riskProfile.getMinConfidence()
       if (confidence < minConfidence) {
         continue;
       }
@@ -293,7 +293,7 @@ export class PortfolioService {
   /**
    * Calculate confidence score
    */
-  private calculateConfidence(token: TrendingToken, analysis: any, riskProfile: string): number {
+  private calculateConfidence(token: TrendingToken, analysis: any, riskProfile: RiskProfile): number {
     let confidence = analysis.score; // Start with token opportunity score
 
     // Risk adjustments
@@ -320,11 +320,7 @@ export class PortfolioService {
     }
 
     // Profile-specific adjustments
-    if (riskProfile === "conservative") {
-      confidence -= Math.max(0, (token.risk.score - 2) * 5);
-    } else if (riskProfile === "aggressive") {
-      confidence += Math.min(10, token.risk.score * 2);
-    }
+    confidence += riskProfile.getTokenConfidenceModifier(token.risk.score);
 
     return Math.max(0, Math.min(100, confidence));
   }
@@ -376,7 +372,7 @@ export class PortfolioService {
       reasoning: string;
     }>,
     numberOfTokens: number,
-    riskProfile: string,
+    riskProfile: RiskProfile
   ): Array<{
     token: TrendingToken;
     sentimentScore: number;
@@ -386,8 +382,8 @@ export class PortfolioService {
   }> {
     // Sort by composite score (weighted average of different factors)
     const sorted = scoredTokens.sort((a, b) => {
-      const scoreA = this.calculateCompositeScore(a, riskProfile);
-      const scoreB = this.calculateCompositeScore(b, riskProfile);
+      const scoreA = riskProfile.getCompositeScore(this.getCompositeParams(a));
+      const scoreB = riskProfile.getCompositeScore(this.getCompositeParams(b));
       return scoreB - scoreA;
     });
 
@@ -426,36 +422,18 @@ export class PortfolioService {
   }
 
   /**
-   * Calculate composite score for ranking
+   * Unpack values from the token data to get params for calculating composite
    */
-  private calculateCompositeScore(
-    tokenData: {
-      token: TrendingToken;
-      sentimentScore: number;
-      momentumScore: number;
-      confidence: number;
-      reasoning: string;
-    },
-    riskProfile: string,
-  ): number {
+  private getCompositeParams(tokenData: {
+    token: TrendingToken;
+    sentimentScore: number;
+    momentumScore: number;
+    confidence: number;
+    reasoning: string;
+  }): CompositeParams {
     const { sentimentScore, momentumScore, confidence } = tokenData;
     const riskScore = tokenData.token.risk.score;
-
-    let composite = 0;
-
-    if (riskProfile === "conservative") {
-      // Prioritize low risk and confidence
-      composite = confidence * 0.4 + sentimentScore * 0.3 + momentumScore * 0.2 + (10 - riskScore) * 0.1 * 10;
-    } else if (riskProfile === "moderate") {
-      // Balanced approach
-      composite = confidence * 0.3 + sentimentScore * 0.3 + momentumScore * 0.3 + (10 - riskScore) * 0.1 * 5;
-    } else {
-      // aggressive
-      // Prioritize momentum and sentiment over safety
-      composite = momentumScore * 0.4 + sentimentScore * 0.3 + confidence * 0.2 + (10 - riskScore) * 0.1 * 2;
-    }
-
-    return composite;
+    return {confidence, sentimentScore, momentumScore, tokenRiskScore: riskScore};
   }
 
   /**
@@ -538,13 +516,10 @@ export class PortfolioService {
     }
 
     // Align with Fear & Greed
-    const fearGreedValue = parseInt(fearGreedTrend.current?.today.value || "50");
-    if (fearGreedValue < 25 && portfolio.metadata.riskProfile === "aggressive") {
-      score += 15; // Contrarian play in extreme fear
-    } else if (fearGreedValue > 75 && portfolio.metadata.riskProfile === "conservative") {
-      score += 10; // Conservative approach in greed
-    }
-
+    const fearGreedValue = parseInt(fearGreedTrend.current?.today.value || '50');
+    const fearGreedBonus = portfolio.metadata.riskProfile.getFearGreedAlignmentBonus(fearGreedValue);
+    score += fearGreedBonus;
+    
     // Align with overall sentiment trend
     const positiveSentiment = sentimentTrend.current?.percentages.positive || 50;
     if (positiveSentiment > 60) {
@@ -633,29 +608,4 @@ export class PortfolioService {
     }
   }
 
-  /**
-   * Get risk profile criteria for logging
-   */
-  private getRiskProfileCriteria(riskProfile: string) {
-    // TODO: Fix inconsistent risk profile thresholds — aggressive shouldn't be stricter than conservative. These values are not consistent with the UI
-    let maxRiskScore = 4;
-    let minLiquidity = 50000; // Default for conservative
-    let minConfidence = 70; // Default for conservative
-
-    if (riskProfile === "moderate") {
-      maxRiskScore = 7;
-      minLiquidity = 100000;
-      minConfidence = 50;
-    } else if (riskProfile === "aggressive") {
-      maxRiskScore = 10;
-      minLiquidity = 50000;
-      minConfidence = 30;
-    }
-
-    return {
-      maxRiskScore,
-      minLiquidity,
-      minConfidence,
-    };
-  }
 }

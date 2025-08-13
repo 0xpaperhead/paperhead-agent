@@ -1,18 +1,12 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-import { PortfolioService } from "../analysis/portfolioService.js";
-import { TradeExecutor } from "./TradeExecutor.js";
-import { SolanaService } from "./SolanaService.js";
-import { MarketAnalyzer } from "../analysis/MarketAnalyzer.js";
-import {
-  PortfolioAnalysis,
-  TradingConfiguration,
-  AgentDecision,
-  RiskProfile,
-  AgentTradeAction,
-} from "../types/index.js";
-import { getTradingConfigByRiskProfile, displayTradingConfig } from "../config/trading.js";
-import { isValidSolanaAddress } from "../utils/validation.js";
-import { TrendAnalyzer } from "../analysis/trendAnalyzer.js";
+import { PortfolioService } from '../analysis/portfolioService.js';
+import { TradeExecutor } from './TradeExecutor.js';
+import { SolanaService } from './SolanaService.js';
+import { MarketAnalyzer } from '../analysis/MarketAnalyzer.js';
+import { PortfolioAnalysis, TradingConfiguration, AgentDecision, AgentTradeAction } from '../types/index.js';
+import { getTradingConfigByRiskProfile, displayTradingConfig } from '../config/trading.js';
+import { isValidSolanaAddress } from '../utils/validation.js';
+import { TrendAnalyzer } from '../analysis/trendAnalyzer.js';
+import { RiskLevel, RiskProfile } from '../analysis/RiskProfile.js';
 
 export class PortfolioManager {
   private portfolioService: PortfolioService;
@@ -278,14 +272,10 @@ export class PortfolioManager {
       // Get cached trend analysis to avoid duplicate calls
       const cachedTrendAnalysis = this.marketAnalyzer.getAgentState().trendAnalysis;
       const riskProfile = this.marketAnalyzer.determineRiskProfile();
-      this.updateTradingConfig(riskProfile);
+      this.updateTradingConfig(riskProfile.level);
 
-      console.log(`🎯 Risk Profile: ${riskProfile.toUpperCase()}`);
-      const newPortfolio = await this.portfolioService.generateEqualAllocationPortfolio(
-        10,
-        riskProfile,
-        cachedTrendAnalysis,
-      );
+      console.log(`🎯 Risk Profile: ${riskProfile.level.toUpperCase()}`);
+      const newPortfolio = await this.portfolioService.generateEqualAllocationPortfolio(10, riskProfile, cachedTrendAnalysis);
 
       // Compare current vs new portfolio
       if (this.currentPortfolio) {
@@ -346,16 +336,14 @@ export class PortfolioManager {
     }
   }
 
-  private updateTradingConfig(riskProfile: "conservative" | "moderate" | "aggressive"): void {
+  private updateTradingConfig(riskLevel: RiskLevel): void {
     const oldProfile = this.tradingConfig;
-    this.tradingConfig = getTradingConfigByRiskProfile(riskProfile);
+    this.tradingConfig = getTradingConfigByRiskProfile(riskLevel);
 
     // Show config change if it's different
-    if (
-      oldProfile.portfolioUpdateIntervalMs !== this.tradingConfig.portfolioUpdateIntervalMs ||
-      oldProfile.maxRiskScore !== this.tradingConfig.maxRiskScore
-    ) {
-      console.log(`\n🔧 TRADING CONFIG UPDATED FOR ${riskProfile.toUpperCase()} PROFILE:`);
+    if (oldProfile.portfolioUpdateIntervalMs !== this.tradingConfig.portfolioUpdateIntervalMs ||
+      oldProfile.maxRiskScore !== this.tradingConfig.maxRiskScore) {
+      console.log(`\n🔧 TRADING CONFIG UPDATED FOR ${riskLevel.toUpperCase()} PROFILE:`);
       console.log(displayTradingConfig(this.tradingConfig));
     }
   }
@@ -365,8 +353,8 @@ export class PortfolioManager {
     console.log("\n💼 PORTFOLIO SUMMARY");
     console.log("=".repeat(50));
     console.log(`📝 ${portfolio.name}`);
-    console.log(`🎯 Strategy: ${portfolio.metadata.strategy.replace("_", " ").toUpperCase()}`);
-    console.log(`⚠️ Risk Profile: ${portfolio.metadata.riskProfile.toUpperCase()}`);
+    console.log(`🎯 Strategy: ${portfolio.metadata.strategy.replace('_', ' ').toUpperCase()}`);
+    console.log(`⚠️ Risk Profile: ${portfolio.metadata.riskProfile.level.toUpperCase()}`);
     console.log("\n🪙 SELECTED TOKENS:");
     portfolio.tokens.forEach((token, index) => {
       console.log(`${index + 1}. ${token.symbol} (${token.name})`);
