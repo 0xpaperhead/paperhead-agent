@@ -131,7 +131,7 @@ describe('RiskProfile', () => {
     it('returns conservative defaults', () => {
       const criteria = new RiskProfile('conservative').getRiskProfileCriteria()
       expect(criteria.maxRiskScore).toBe(4)
-      expect(criteria.minLiquidity).toBe(50000)
+      expect(criteria.minLiquidity).toBe(250000)
       expect(criteria.minConfidence).toBe(70)
     })
 
